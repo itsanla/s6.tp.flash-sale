@@ -100,11 +100,13 @@ Image aplikasi: [`itsanla/s6.tp.flash-sale`](https://hub.docker.com/r/itsanla/s6
 
 ### Akses
 
-| Layanan | Port langsung | Domain (Traefik, port 80) |
-|---------|---------------|---------------------------|
-| Aplikasi (UI/API) | `http://<ip>:6003` | http://topik-khusus.akademik.anla.works |
-| RabbitMQ mgmt UI | `http://<ip>:6004` | http://rabbitmq.akademik.anla.works |
+| Layanan | Port langsung | Domain (Traefik, HTTPS + Let's Encrypt) |
+|---------|---------------|------------------------------------------|
+| Aplikasi (UI/API) | `http://<ip>:6003` | https://topik-khusus.akademik.anla.works |
+| RabbitMQ mgmt UI | `http://<ip>:6004` | https://rabbitmq.akademik.anla.works |
 | Redis | `<ip>:6005` | — |
+
+Akses via port langsung tetap HTTP polos (tanpa TLS); akses via domain otomatis diarahkan ke HTTPS.
 
 RabbitMQ UI login: `guest` / `guest`.
 

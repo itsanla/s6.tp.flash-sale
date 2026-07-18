@@ -5,9 +5,9 @@
 #   - Aplikasi (UI/API) : http://<ip>:6003
 #   - RabbitMQ mgmt UI   : http://<ip>:6004   (guest / guest)
 #   - Redis              : <ip>:6005
-# Akses via domain (Traefik / Coolify, port 80):
-#   - Aplikasi  : http://topik-khusus.akademik.anla.works
-#   - RabbitMQ  : http://rabbitmq.akademik.anla.works
+# Akses via domain (Traefik / Coolify, HTTPS + auto redirect dari http, Let's Encrypt):
+#   - Aplikasi  : https://topik-khusus.akademik.anla.works
+#   - RabbitMQ  : https://rabbitmq.akademik.anla.works
 
 services:
   redis:
@@ -41,8 +41,15 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
+      # Router http: hanya untuk redirect ke https.
+      - "traefik.http.routers.flashsale-rabbitmq-http.rule=Host(`rabbitmq.akademik.anla.works`)"
+      - "traefik.http.routers.flashsale-rabbitmq-http.entrypoints=http"
+      - "traefik.http.routers.flashsale-rabbitmq-http.middlewares=flashsale-rabbitmq-redirect"
+      - "traefik.http.middlewares.flashsale-rabbitmq-redirect.redirectscheme.scheme=https"
+      # Router https: TLS via Let's Encrypt (resolver Coolify).
       - "traefik.http.routers.flashsale-rabbitmq.rule=Host(`rabbitmq.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-rabbitmq.entrypoints=http"
+      - "traefik.http.routers.flashsale-rabbitmq.entrypoints=https"
+      - "traefik.http.routers.flashsale-rabbitmq.tls.certresolver=letsencrypt"
       - "traefik.http.routers.flashsale-rabbitmq.service=flashsale-rabbitmq"
       - "traefik.http.services.flashsale-rabbitmq.loadbalancer.server.port=15672"
 
@@ -74,8 +81,15 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
+      # Router http: hanya untuk redirect ke https.
+      - "traefik.http.routers.flashsale-app-http.rule=Host(`topik-khusus.akademik.anla.works`)"
+      - "traefik.http.routers.flashsale-app-http.entrypoints=http"
+      - "traefik.http.routers.flashsale-app-http.middlewares=flashsale-app-redirect"
+      - "traefik.http.middlewares.flashsale-app-redirect.redirectscheme.scheme=https"
+      # Router https: TLS via Let's Encrypt (resolver Coolify).
       - "traefik.http.routers.flashsale-app.rule=Host(`topik-khusus.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-app.entrypoints=http"
+      - "traefik.http.routers.flashsale-app.entrypoints=https"
+      - "traefik.http.routers.flashsale-app.tls.certresolver=letsencrypt"
       - "traefik.http.routers.flashsale-app.service=flashsale-app"
       - "traefik.http.services.flashsale-app.loadbalancer.server.port=8080"
 
