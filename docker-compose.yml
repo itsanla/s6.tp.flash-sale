@@ -1,0 +1,62 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: flashsale-redis
+    # Tidak dipublish ke host — hanya diakses via jaringan internal compose.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: flashsale-rabbitmq
+    ports:
+      - "15673:15672" # Management UI (opsional, untuk observasi queue)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: flashsale-app
+    environment:
+      APP_MODE: server
+      APP_ENV: production
+      PORT: "8080"
+      REDIS_ADDR: redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      ORDER_TTL_SECONDS: "60"
+      PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
+      PRODUCT_STOCK: "20"
+    ports:
+      - "8095:8080" # UI & API -> http://<host>:8095
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: flashsale-worker
+    environment:
+      APP_MODE: worker
+      APP_ENV: production
+      REDIS_ADDR: redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      ORDER_TTL_SECONDS: "60"
+      PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
+      PRODUCT_STOCK: "20"
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped

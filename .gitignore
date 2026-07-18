@@ -1,0 +1,12 @@
+# Binary hasil build
+/flashsale
+*.exe
+
+# Env & log lokal
+.env
+*.log
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
