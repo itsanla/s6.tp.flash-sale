@@ -53,8 +53,10 @@ services:
       APP_MODE: all # server (HTTP+UI) + worker (consumer) dalam 1 container
       APP_ENV: production
       PORT: "8080"
-      REDIS_ADDR: redis:6379
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      # Pakai nama container unik (bukan "redis"/"rabbitmq") agar tidak tabrakan
+      # DNS dengan service milik Coolify di network "coolify" yang di-share.
+      REDIS_ADDR: flashsale-redis:6379
+      RABBITMQ_URL: amqp://guest:guest@flashsale-rabbitmq:5672/
       ORDER_TTL_SECONDS: "60"
       PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
       PRODUCT_STOCK: "20"
