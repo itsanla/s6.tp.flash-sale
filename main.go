@@ -19,11 +19,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
 	cfg := config.Load()
 	log.Printf("Flash Sale Mini | mode=%s env=%s", cfg.AppMode, cfg.AppEnv)
+
+	// Hash password admin sekali di awal — runtime selalu membandingkan lewat
+	// bcrypt, bukan plaintext, walau sumbernya env var deployment.
+	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.AdminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Gagal hashing password admin: %v", err)
+	}
+	cfg.AdminPasswordHash = string(hash)
 
 	// --- Redis (m1) ---
 	rdb := redis.NewClient(&redis.Options{
@@ -57,7 +66,7 @@ func main() {
 	}
 	defer mq.Close()
 
-	uc := usecase.NewFlashSaleUsecase(stockRepo, mq, time.Duration(cfg.OrderTTLSeconds)*time.Second, cfg.ProductID, cfg.LoadTestMaxQuantity)
+	uc := usecase.NewFlashSaleUsecase(stockRepo, mq, time.Duration(cfg.OrderTTLSeconds)*time.Second, cfg.LoadTestMaxQuantity)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -105,12 +114,12 @@ func startServer(cfg *config.Config, uc *usecase.FlashSaleUsecase, rdb *redis.Cl
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "flash-sale", "mode": cfg.AppMode})
 	})
 
-	// Beri UI info produk mana yang aktif.
+	// Info umum untuk UI (bukan rahasia).
 	r.GET("/api/v1/config", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"product_id":             cfg.ProductID,
-			"order_ttl_seconds":      cfg.OrderTTLSeconds,
-			"loadtest_max_quantity":  cfg.LoadTestMaxQuantity,
+			"default_product_id":   cfg.ProductID,
+			"order_ttl_seconds":    cfg.OrderTTLSeconds,
+			"loadtest_max_quantity": cfg.LoadTestMaxQuantity,
 		})
 	})
 

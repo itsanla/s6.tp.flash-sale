@@ -13,19 +13,47 @@ import (
 // FlashSaleUsecase memuat logika bisnis flash sale: menggabungkan reservasi stok
 // atomik (Redis / m1) dengan pemrosesan asinkron via message queue (RabbitMQ / m2).
 type FlashSaleUsecase struct {
-	repo             domain.StockRepository
-	pub              domain.Publisher
-	ttl              time.Duration
-	productID        string
-	loadTestMaxQty   int64
+	repo           domain.StockRepository
+	pub            domain.Publisher
+	ttl            time.Duration
+	loadTestMaxQty int64
 }
 
-func NewFlashSaleUsecase(repo domain.StockRepository, pub domain.Publisher, ttl time.Duration, productID string, loadTestMaxQty int) *FlashSaleUsecase {
-	return &FlashSaleUsecase{repo: repo, pub: pub, ttl: ttl, productID: productID, loadTestMaxQty: int64(loadTestMaxQty)}
+func NewFlashSaleUsecase(repo domain.StockRepository, pub domain.Publisher, ttl time.Duration, loadTestMaxQty int) *FlashSaleUsecase {
+	return &FlashSaleUsecase{repo: repo, pub: pub, ttl: ttl, loadTestMaxQty: int64(loadTestMaxQty)}
 }
 
 func (u *FlashSaleUsecase) GetProduct(ctx context.Context, id string) (*domain.Product, error) {
 	return u.repo.GetProduct(ctx, id)
+}
+
+func (u *FlashSaleUsecase) ListProducts(ctx context.Context) ([]domain.Product, error) {
+	return u.repo.ListProducts(ctx)
+}
+
+// CreateProduct menambah produk baru ke katalog (Admin). ID dibuat otomatis.
+func (u *FlashSaleUsecase) CreateProduct(ctx context.Context, name string, stock int64) (*domain.Product, error) {
+	if name == "" || stock < 0 {
+		return nil, domain.ErrInvalidQuantity
+	}
+	p := domain.Product{ID: "PROD-" + randomID(), Name: name, Stock: stock}
+	if err := u.repo.CreateProduct(ctx, p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// UpdateProduct memperbarui nama dan/atau stok produk (Admin).
+func (u *FlashSaleUsecase) UpdateProduct(ctx context.Context, id, name string, newStock *int64) error {
+	if newStock != nil && *newStock < 0 {
+		return domain.ErrInvalidQuantity
+	}
+	return u.repo.UpdateProduct(ctx, id, name, newStock)
+}
+
+// DeleteProduct menghapus produk dari katalog (Admin), ditolak bila sudah ada order.
+func (u *FlashSaleUsecase) DeleteProduct(ctx context.Context, id string) error {
+	return u.repo.DeleteProduct(ctx, id)
 }
 
 func (u *FlashSaleUsecase) ListOrders(ctx context.Context, limit int) ([]domain.Order, error) {
@@ -141,16 +169,19 @@ func (u *FlashSaleUsecase) ExpireOrder(ctx context.Context, orderID string) erro
 // yang sudah dibuktikan lewat checkout normal), lalu MENGEMBALIKAN batch ID
 // segera sambil mengirim pesan ke antrean bulk di background (goroutine).
 // Klien mendapat respons sukses instan; pemrosesan aktual terjadi asinkron.
-func (u *FlashSaleUsecase) StartBulkLoadTest(ctx context.Context, qty int64) (string, error) {
+func (u *FlashSaleUsecase) StartBulkLoadTest(ctx context.Context, productID string, qty int64) (string, error) {
 	if qty <= 0 {
 		return "", domain.ErrInvalidQuantity
 	}
 	if qty > u.loadTestMaxQty {
 		return "", domain.ErrBatchTooLarge
 	}
+	if _, err := u.repo.GetProduct(ctx, productID); err != nil {
+		return "", err
+	}
 
 	batchID := "BATCH-" + randomID()
-	if err := u.repo.RestoreStock(ctx, u.productID, int(qty)); err != nil {
+	if err := u.repo.RestoreStock(ctx, productID, int(qty)); err != nil {
 		return "", err
 	}
 	if err := u.repo.CreateBatch(ctx, batchID, qty); err != nil {
@@ -159,12 +190,12 @@ func (u *FlashSaleUsecase) StartBulkLoadTest(ctx context.Context, qty int64) (st
 
 	// Publish berjalan di background (context sendiri, terpisah dari request HTTP
 	// yang sudah selesai) agar submit 50.000 pesan tidak memblokir respons klien.
-	go u.submitBulkMessages(batchID, qty)
+	go u.submitBulkMessages(batchID, productID, qty)
 
 	return batchID, nil
 }
 
-func (u *FlashSaleUsecase) submitBulkMessages(batchID string, qty int64) {
+func (u *FlashSaleUsecase) submitBulkMessages(batchID, productID string, qty int64) {
 	ctx := context.Background()
 	// Flush progres "submitted" secara berkala (bukan tiap pesan) agar tidak
 	// membebani Redis dengan puluhan ribu round-trip yang tidak perlu.
@@ -175,7 +206,7 @@ func (u *FlashSaleUsecase) submitBulkMessages(batchID string, qty int64) {
 
 	var i int64
 	for i = 1; i <= qty; i++ {
-		if err := u.pub.PublishBulk(ctx, domain.BulkMessage{BatchID: batchID, Seq: int(i)}); err != nil {
+		if err := u.pub.PublishBulk(ctx, domain.BulkMessage{BatchID: batchID, ProductID: productID, Seq: int(i)}); err != nil {
 			log.Printf("[loadtest] gagal publish pesan %d/%d batch %s: %v", i, qty, batchID, err)
 			continue
 		}
@@ -197,9 +228,9 @@ func (u *FlashSaleUsecase) GetBatch(ctx context.Context, batchID string) (*domai
 // order nyata (reservasi atomik + simpan) lalu auto-pay (simulasi pembayaran
 // instan) supaya hasilnya "berhasil" secara permanen, bukan menunggu bayar
 // manual seperti alur checkout normal.
-func (u *FlashSaleUsecase) ProcessBulkOrder(ctx context.Context, batchID string) {
+func (u *FlashSaleUsecase) ProcessBulkOrder(ctx context.Context, batchID, productID string) {
 	success := true
-	order, err := u.Checkout(ctx, u.productID, 1)
+	order, err := u.Checkout(ctx, productID, 1)
 	if err != nil {
 		success = false
 	} else if _, err := u.Pay(ctx, order.ID); err != nil {

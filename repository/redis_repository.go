@@ -25,12 +25,14 @@ func NewRedisStockRepository(client *redis.Client) domain.StockRepository {
 	return &redisStockRepository{client: client}
 }
 
-func stockKey(productID string) string { return "flashsale:stock:" + productID }
-func nameKey(productID string) string  { return "flashsale:product:name:" + productID }
-func orderKey(orderID string) string   { return "flashsale:order:" + orderID }
-func batchKey(batchID string) string   { return "flashsale:batch:" + batchID }
+func stockKey(productID string) string      { return "flashsale:stock:" + productID }
+func nameKey(productID string) string       { return "flashsale:product:name:" + productID }
+func orderKey(orderID string) string        { return "flashsale:order:" + orderID }
+func batchKey(batchID string) string        { return "flashsale:batch:" + batchID }
+func orderCountKey(productID string) string { return "flashsale:product:ordercount:" + productID }
 
-const orderIndexKey = "flashsale:orders" // sorted set: member=orderID, score=unix ts
+const orderIndexKey = "flashsale:orders"      // sorted set: member=orderID, score=unix ts
+const productIndexKey = "flashsale:products:index" // set: seluruh ID produk pada katalog
 
 // reserveScript: cek stok lalu kurangi secara atomik.
 //   KEYS[1] = stock key
@@ -53,7 +55,84 @@ func (r *redisStockRepository) SeedProduct(ctx context.Context, p domain.Product
 	if err := r.client.SetNX(ctx, stockKey(p.ID), p.Stock, 0).Err(); err != nil {
 		return err
 	}
-	return r.client.Set(ctx, nameKey(p.ID), p.Name, 0).Err()
+	if err := r.client.Set(ctx, nameKey(p.ID), p.Name, 0).Err(); err != nil {
+		return err
+	}
+	return r.client.SAdd(ctx, productIndexKey, p.ID).Err()
+}
+
+func (r *redisStockRepository) ListProducts(ctx context.Context) ([]domain.Product, error) {
+	ids, err := r.client.SMembers(ctx, productIndexKey).Result()
+	if err != nil {
+		return nil, err
+	}
+	products := make([]domain.Product, 0, len(ids))
+	for _, id := range ids {
+		p, err := r.GetProduct(ctx, id)
+		if err == domain.ErrProductNotFound {
+			continue // index basi (mis. produk pernah dihapus manual), abaikan
+		}
+		if err != nil {
+			return nil, fmt.Errorf("gagal membaca produk %s: %w", id, err)
+		}
+		products = append(products, *p)
+	}
+	return products, nil
+}
+
+func (r *redisStockRepository) CreateProduct(ctx context.Context, p domain.Product) error {
+	ok, err := r.client.SetNX(ctx, stockKey(p.ID), p.Stock, 0).Result()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrProductExists
+	}
+	if err := r.client.Set(ctx, nameKey(p.ID), p.Name, 0).Err(); err != nil {
+		return err
+	}
+	return r.client.SAdd(ctx, productIndexKey, p.ID).Err()
+}
+
+func (r *redisStockRepository) UpdateProduct(ctx context.Context, id, name string, newStock *int64) error {
+	exists, err := r.client.Exists(ctx, stockKey(id)).Result()
+	if err != nil {
+		return err
+	}
+	if exists == 0 {
+		return domain.ErrProductNotFound
+	}
+	pipe := r.client.TxPipeline()
+	if name != "" {
+		pipe.Set(ctx, nameKey(id), name, 0)
+	}
+	if newStock != nil {
+		pipe.Set(ctx, stockKey(id), *newStock, 0)
+	}
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+func (r *redisStockRepository) DeleteProduct(ctx context.Context, id string) error {
+	exists, err := r.client.Exists(ctx, stockKey(id)).Result()
+	if err != nil {
+		return err
+	}
+	if exists == 0 {
+		return domain.ErrProductNotFound
+	}
+	count, err := r.client.Get(ctx, orderCountKey(id)).Int64()
+	if err != nil && err != redis.Nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrProductHasOrders
+	}
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, stockKey(id), nameKey(id), orderCountKey(id))
+	pipe.SRem(ctx, productIndexKey, id)
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (r *redisStockRepository) GetProduct(ctx context.Context, id string) (*domain.Product, error) {
@@ -98,6 +177,9 @@ func (r *redisStockRepository) SaveOrder(ctx context.Context, o domain.Order) er
 	pipe := r.client.TxPipeline()
 	pipe.Set(ctx, orderKey(o.ID), data, 24*time.Hour)
 	pipe.ZAdd(ctx, orderIndexKey, redis.Z{Score: float64(o.CreatedAt.Unix()), Member: o.ID})
+	// Dilacak agar DeleteProduct bisa menolak penghapusan produk yang sudah terjual
+	// (mencegah orphan order), mencontoh proteksi hapus TicketType pada EventHub.
+	pipe.Incr(ctx, orderCountKey(o.ProductID))
 	_, err = pipe.Exec(ctx)
 	return err
 }

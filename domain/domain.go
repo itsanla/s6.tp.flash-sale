@@ -24,6 +24,9 @@ var (
 	ErrInvalidQuantity   = errors.New("jumlah tiket tidak valid")
 	ErrBatchNotFound     = errors.New("batch uji beban tidak ditemukan")
 	ErrBatchTooLarge     = errors.New("jumlah pesanan melebihi batas maksimum uji beban")
+	ErrInvalidCredentials = errors.New("username atau password salah")
+	ErrProductExists      = errors.New("produk dengan id tersebut sudah ada")
+	ErrProductHasOrders   = errors.New("produk tidak dapat dihapus karena sudah memiliki order")
 )
 
 // Product adalah produk/tiket yang dijual saat flash sale.
@@ -60,8 +63,9 @@ type ExpiryMessage struct {
 // BulkMessage adalah satu "tiket antrean" pada uji beban: mewakili satu niat
 // pemesanan yang dikirim ke RabbitMQ untuk diproses worker secara asinkron.
 type BulkMessage struct {
-	BatchID string `json:"batch_id"`
-	Seq     int    `json:"seq"`
+	BatchID   string `json:"batch_id"`
+	ProductID string `json:"product_id"`
+	Seq       int    `json:"seq"`
 }
 
 // BatchStatus adalah progres real-time sebuah batch uji beban, dibaca UI via polling.
@@ -78,6 +82,14 @@ type BatchStatus struct {
 type StockRepository interface {
 	SeedProduct(ctx context.Context, p Product) error
 	GetProduct(ctx context.Context, id string) (*Product, error)
+	// ListProducts mengembalikan seluruh produk pada katalog flash sale.
+	ListProducts(ctx context.Context) ([]Product, error)
+	// CreateProduct menambah produk baru (Admin). Gagal bila ID sudah dipakai.
+	CreateProduct(ctx context.Context, p Product) error
+	// UpdateProduct memperbarui nama dan/atau stok (Admin). newStock nil berarti stok tidak diubah.
+	UpdateProduct(ctx context.Context, id, name string, newStock *int64) error
+	// DeleteProduct menghapus produk (Admin). Gagal bila produk sudah memiliki order.
+	DeleteProduct(ctx context.Context, id string) error
 	// TryReserve mengurangi stok secara atomik (Lua). Mengembalikan sisa stok.
 	TryReserve(ctx context.Context, productID string, qty int) (remaining int64, err error)
 	// RestoreStock mengembalikan stok saat order expired/cancelled.

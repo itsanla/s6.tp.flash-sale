@@ -25,8 +25,8 @@
       min-height: 100vh;
       padding: 24px 16px 60px;
     }
-    .wrap { max-width: 920px; margin: 0 auto; }
-    header { text-align: center; margin-bottom: 28px; }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 28px; position: relative; }
     header h1 { font-size: 26px; letter-spacing: -0.5px; }
     header h1 .flash { color: var(--accent); }
     header p { color: var(--muted); margin-top: 6px; font-size: 14px; }
@@ -37,39 +37,59 @@
     }
     .badge b { color: var(--text); }
 
+    .admin-corner { position: absolute; top: 0; right: 0; font-size: 12px; }
+    .admin-corner a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+    .admin-corner .who { color: var(--green); }
+
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
     @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
 
     .card {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: 16px; padding: 22px;
+      border-radius: 16px; padding: 22px; margin-bottom: 18px;
     }
     .card h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 16px; }
 
-    .product-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .stock-row { display: flex; align-items: baseline; gap: 10px; margin: 14px 0; }
-    .stock-num { font-size: 52px; font-weight: 800; line-height: 1; }
-    .stock-num.low { color: var(--accent); }
-    .stock-num.ok { color: var(--green); }
-    .stock-label { color: var(--muted); font-size: 14px; }
-    .sold-out { color: var(--accent); font-weight: 700; font-size: 20px; }
-
-    .qty { display: flex; align-items: center; gap: 10px; margin: 18px 0; }
-    .qty label { color: var(--muted); font-size: 14px; }
-    .qty input {
-      width: 72px; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--card2); color: var(--text); font-size: 16px; text-align: center;
+    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .product-card {
+      background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      display: flex; flex-direction: column; gap: 8px;
     }
+    .product-card .pname { font-weight: 700; font-size: 15px; }
+    .product-card .pstock { font-size: 28px; font-weight: 800; }
+    .product-card .pstock.low { color: var(--accent); }
+    .product-card .pstock.ok { color: var(--green); }
+    .product-card .plabel { color: var(--muted); font-size: 12px; margin-top: -6px; }
+    .product-card .prow { display: flex; gap: 6px; align-items: center; }
+    .product-card input[type=number] {
+      width: 56px; padding: 6px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); text-align: center; font-size: 13px;
+    }
+    .product-card .admin-actions { display: flex; gap: 6px; margin-top: 4px; }
+    .product-card .admin-actions button { flex: 1; font-size: 12px; padding: 6px 8px; }
+
+    .stock-label { color: var(--muted); font-size: 14px; }
+
+    .qty { display: flex; align-items: center; gap: 10px; margin: 18px 0; flex-wrap: wrap; }
+    .qty label { color: var(--muted); font-size: 14px; }
+    .qty input, .qty select {
+      padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text); font-size: 14px;
+    }
+    .qty input[type=number] { width: 72px; text-align: center; }
 
     button {
       cursor: pointer; border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
       padding: 12px 16px; color: #fff; transition: transform .05s, opacity .15s;
+      background: var(--card2); border: 1px solid var(--border);
     }
     button:active { transform: translateY(1px); }
     button:disabled { opacity: .45; cursor: not-allowed; }
-    .btn-buy { width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent2)); font-size: 17px; padding: 14px; }
-    .btn-pay { background: var(--green); }
-    .btn-cancel { background: var(--card2); border: 1px solid var(--border); }
+    .btn-buy { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; }
+    .btn-pay { background: var(--green); border: none; }
+    .btn-cancel { background: var(--card2); }
+    .btn-danger { background: var(--accent); border: none; }
+    .btn-small { padding: 8px 12px; font-size: 13px; }
 
     .order-box { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 4px; }
     .order-box .oid { font-family: ui-monospace, monospace; font-size: 13px; color: var(--blue); }
@@ -89,6 +109,12 @@
     .status.EXPIRED { background: rgba(154,160,172,.15); color: var(--muted); }
     .status.CANCELLED { background: rgba(255,77,79,.15); color: var(--accent); }
 
+    .login-form, .add-product-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .login-form input, .add-product-form input {
+      padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card2); color: var(--text); font-size: 13px;
+    }
+
     #toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
       background: var(--card2); border: 1px solid var(--border); color: var(--text);
@@ -103,6 +129,9 @@
 <body>
   <div class="wrap">
     <header>
+      <div class="admin-corner" id="admin-corner">
+        <a id="admin-link" onclick="toggleLoginBox()">Login Admin</a>
+      </div>
       <h1><span class="flash">⚡ Flash Sale</span> Mini</h1>
       <p>Demo integrasi <b>Redis</b> (stok atomik, zero-oversell) + <b>RabbitMQ</b> (notifikasi &amp; auto-expire)</p>
       <div class="badges">
@@ -112,36 +141,43 @@
       </div>
     </header>
 
-    <div class="grid">
-      <!-- Kolom kiri: produk & checkout -->
-      <div class="card">
-        <h2>Produk Flash Sale</h2>
-        <div class="product-name" id="product-name">Memuat…</div>
-        <div class="stock-row">
-          <span class="stock-num ok" id="stock-num">–</span>
-          <span class="stock-label">tiket tersisa</span>
-        </div>
-        <div class="qty">
-          <label for="qty">Jumlah</label>
-          <input type="number" id="qty" value="1" min="1" max="10" />
-        </div>
-        <button class="btn-buy" id="btn-buy">🎟️ Beli Sekarang</button>
+    <div class="card" id="login-box" style="display:none;">
+      <h2>Login Admin</h2>
+      <div class="login-form">
+        <input type="text" id="login-username" placeholder="Username" value="admin" />
+        <input type="password" id="login-password" placeholder="Password" />
+        <button class="btn-pay" id="btn-login">Masuk</button>
+      </div>
+    </div>
 
-        <div id="active-order" style="margin-top:18px; display:none;">
-          <h2 style="margin-top:8px;">Order Aktif</h2>
-          <div class="order-box">
-            <div class="oid" id="ao-id"></div>
-            <div class="countdown" id="ao-countdown">--:--</div>
-            <div class="stock-label">sisa waktu pembayaran</div>
-            <div class="order-actions">
-              <button class="btn-pay" id="btn-pay">💳 Bayar</button>
-              <button class="btn-cancel" id="btn-cancel">Batalkan</button>
-            </div>
+    <div class="card">
+      <h2>Katalog Produk Flash Sale</h2>
+      <div id="add-product-box" style="display:none; margin-bottom:16px;">
+        <div class="add-product-form">
+          <input type="text" id="new-product-name" placeholder="Nama produk baru" />
+          <input type="number" id="new-product-stock" placeholder="Stok" min="0" style="width:90px;" />
+          <button class="btn-pay btn-small" id="btn-add-product">+ Tambah Produk</button>
+        </div>
+      </div>
+      <div class="product-grid" id="product-grid">
+        <div class="empty">Memuat produk…</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card" id="active-order-card" style="display:none;">
+        <h2>Order Aktif</h2>
+        <div class="order-box">
+          <div class="oid" id="ao-id"></div>
+          <div class="countdown" id="ao-countdown">--:--</div>
+          <div class="stock-label">sisa waktu pembayaran</div>
+          <div class="order-actions">
+            <button class="btn-pay" id="btn-pay">💳 Bayar</button>
+            <button class="btn-cancel" id="btn-cancel">Batalkan</button>
           </div>
         </div>
       </div>
 
-      <!-- Kolom kanan: daftar order -->
       <div class="card">
         <h2>Riwayat Order</h2>
         <div id="orders-wrap">
@@ -150,7 +186,7 @@
       </div>
     </div>
 
-    <div class="card" style="margin-top:18px;">
+    <div class="card">
       <h2>⚡ Uji Beban (Load Test)</h2>
       <p style="color:var(--muted); font-size:13px; margin:-6px 0 14px; line-height:1.6;">
         Kirim banyak pesanan sekaligus untuk membuktikan Redis &amp; RabbitMQ benar bekerja di bawah beban tinggi.
@@ -158,6 +194,8 @@
         <b>asinkron di belakang layar</b> lewat antrean RabbitMQ — perhatikan progres &amp; Riwayat Order bertambah bertahap.
       </p>
       <div class="qty">
+        <label for="loadtest-product">Produk</label>
+        <select id="loadtest-product"></select>
         <label for="loadtest-qty">Jumlah pesanan</label>
         <input type="number" id="loadtest-qty" value="1000" min="1" style="width:120px;" />
         <button class="btn-pay" id="btn-loadtest" style="flex:none; padding:12px 22px;">🚀 Kirim Serentak</button>
@@ -182,7 +220,8 @@
 
     <div class="foot">
       Alur: <b>Beli</b> → stok dikurangi atomik di Redis → order PENDING → pesan dijadwalkan di RabbitMQ (TTL).<br>
-      Jika tidak dibayar sampai batas waktu → pesan masuk <b>Dead Letter Queue</b> → worker meng-<i>expire</i> order &amp; mengembalikan stok.
+      Jika tidak dibayar sampai batas waktu → pesan masuk <b>Dead Letter Queue</b> → worker meng-<i>expire</i> order &amp; mengembalikan stok.<br>
+      Kelola produk (tambah/ubah/hapus) membutuhkan login Admin.
     </div>
   </div>
 
@@ -192,6 +231,8 @@
     const API = "/api/v1";
     let activeOrderId = null;
     let countdownTimer = null;
+    let adminToken = localStorage.getItem("flashsale_admin_token") || null;
+    let products = [];
 
     function toast(msg, isErr = false) {
       const t = document.getElementById("toast");
@@ -200,19 +241,17 @@
       setTimeout(() => (t.className = ""), 2600);
     }
 
-    async function api(path, method = "GET") {
+    async function apiCall(path, method = "GET", body = null, auth = false) {
+      const headers = { "Content-Type": "application/json" };
+      if (auth && adminToken) headers["Authorization"] = "Bearer " + adminToken;
       const res = await fetch(API + path, {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: method === "POST" ? JSON.stringify(bodyFor(path)) : undefined,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Terjadi kesalahan");
       return data;
-    }
-    function bodyFor(path) {
-      if (path === "/checkout") return { quantity: parseInt(document.getElementById("qty").value) || 1 };
-      return {};
     }
 
     async function loadConfig() {
@@ -222,28 +261,151 @@
       } catch (_) {}
     }
 
-    async function refreshProduct() {
+    // --- Admin login ---
+    function toggleLoginBox() {
+      const box = document.getElementById("login-box");
+      box.style.display = box.style.display === "none" ? "block" : "none";
+    }
+    function renderAdminCorner() {
+      const corner = document.getElementById("admin-corner");
+      if (adminToken) {
+        corner.innerHTML = '<span class="who">🔓 Admin aktif</span> · <a onclick="logoutAdmin()">Keluar</a>';
+        document.getElementById("add-product-box").style.display = "block";
+      } else {
+        corner.innerHTML = '<a onclick="toggleLoginBox()">Login Admin</a>';
+        document.getElementById("add-product-box").style.display = "none";
+      }
+    }
+    function logoutAdmin() {
+      adminToken = null;
+      localStorage.removeItem("flashsale_admin_token");
+      renderAdminCorner();
+      renderProducts();
+      toast("Berhasil keluar dari mode Admin.");
+    }
+    document.getElementById("btn-login").addEventListener("click", async () => {
+      const username = document.getElementById("login-username").value;
+      const password = document.getElementById("login-password").value;
       try {
-        const { data } = await api("/product");
-        document.getElementById("product-name").textContent = data.name;
-        const el = document.getElementById("stock-num");
-        if (data.stock <= 0) {
-          el.textContent = "0";
-          el.className = "stock-num low";
-          document.getElementById("btn-buy").disabled = true;
-          document.getElementById("btn-buy").textContent = "😢 Habis Terjual";
-        } else {
-          el.textContent = data.stock;
-          el.className = "stock-num " + (data.stock <= 5 ? "low" : "ok");
-          document.getElementById("btn-buy").disabled = false;
-          document.getElementById("btn-buy").textContent = "🎟️ Beli Sekarang";
-        }
+        const { data } = await apiCall("/auth/login", "POST", { username, password });
+        adminToken = data.token;
+        localStorage.setItem("flashsale_admin_token", adminToken);
+        document.getElementById("login-box").style.display = "none";
+        document.getElementById("login-password").value = "";
+        renderAdminCorner();
+        renderProducts();
+        toast("✅ Login admin berhasil.");
+      } catch (e) {
+        toast("❌ " + e.message, true);
+      }
+    });
+
+    // --- Katalog produk ---
+    async function refreshProducts() {
+      try {
+        const { data } = await apiCall("/products");
+        products = data || [];
+        renderProducts();
+        renderLoadTestProductOptions();
       } catch (e) { /* diam */ }
     }
 
+    function renderProducts() {
+      const grid = document.getElementById("product-grid");
+      if (!products.length) {
+        grid.innerHTML = '<div class="empty">Belum ada produk. ' + (adminToken ? "Tambahkan lewat form di atas." : "") + '</div>';
+        return;
+      }
+      grid.innerHTML = products.map(p => {
+        const soldOut = p.stock <= 0;
+        const stockClass = soldOut ? "low" : (p.stock <= 5 ? "low" : "ok");
+        const adminBlock = adminToken ? `
+          <div class="admin-actions">
+            <button class="btn-small" onclick="editProduct('${p.id}')">✏️ Edit</button>
+            <button class="btn-small btn-danger" onclick="deleteProduct('${p.id}')">🗑️ Hapus</button>
+          </div>` : "";
+        return `
+          <div class="product-card">
+            <div class="pname">${escapeHtml(p.name)}</div>
+            <div class="pstock ${stockClass}">${soldOut ? "0" : p.stock}</div>
+            <div class="plabel">tiket tersisa</div>
+            <div class="prow">
+              <input type="number" id="qty-${p.id}" value="1" min="1" ${soldOut ? "disabled" : ""} />
+              <button class="btn-buy" style="flex:1;" ${soldOut ? "disabled" : ""} onclick="buyProduct('${p.id}')">
+                ${soldOut ? "😢 Habis" : "🎟️ Beli"}
+              </button>
+            </div>
+            ${adminBlock}
+          </div>`;
+      }).join("");
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function renderLoadTestProductOptions() {
+      const sel = document.getElementById("loadtest-product");
+      const current = sel.value;
+      sel.innerHTML = products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+      if (current && products.some(p => p.id === current)) sel.value = current;
+    }
+
+    async function buyProduct(productId) {
+      const qtyEl = document.getElementById("qty-" + productId);
+      const qty = parseInt(qtyEl.value) || 1;
+      try {
+        const { data } = await apiCall("/checkout", "POST", { product_id: productId, quantity: qty });
+        toast("✅ Order dibuat: " + data.id);
+        showActiveOrder(data);
+        refreshProducts();
+        refreshOrders();
+      } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function editProduct(productId) {
+      const p = products.find(x => x.id === productId);
+      if (!p) return;
+      const name = prompt("Nama produk:", p.name);
+      if (name === null) return;
+      const stockStr = prompt("Stok:", p.stock);
+      if (stockStr === null) return;
+      const stock = parseInt(stockStr);
+      try {
+        await apiCall(`/products/${productId}`, "PUT", { name, stock: isNaN(stock) ? null : stock }, true);
+        toast("✅ Produk diperbarui.");
+        refreshProducts();
+      } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function deleteProduct(productId) {
+      if (!confirm("Hapus produk ini? Tidak bisa dihapus jika sudah ada order.")) return;
+      try {
+        await apiCall(`/products/${productId}`, "DELETE", null, true);
+        toast("🗑️ Produk dihapus.");
+        refreshProducts();
+      } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    document.getElementById("btn-add-product").addEventListener("click", async () => {
+      const name = document.getElementById("new-product-name").value.trim();
+      const stock = parseInt(document.getElementById("new-product-stock").value);
+      if (!name || isNaN(stock) || stock < 0) { toast("Isi nama & stok yang valid", true); return; }
+      try {
+        await apiCall("/products", "POST", { name, stock }, true);
+        document.getElementById("new-product-name").value = "";
+        document.getElementById("new-product-stock").value = "";
+        toast("✅ Produk baru ditambahkan.");
+        refreshProducts();
+      } catch (e) { toast("❌ " + e.message, true); }
+    });
+
+    // --- Order aktif & riwayat ---
     async function refreshOrders() {
       try {
-        const { data } = await api("/orders");
+        const { data } = await apiCall("/orders");
         const wrap = document.getElementById("orders-wrap");
         if (!data || data.length === 0) {
           wrap.innerHTML = '<div class="empty">Belum ada order.</div>';
@@ -261,13 +423,13 @@
 
     function showActiveOrder(order) {
       activeOrderId = order.id;
-      document.getElementById("active-order").style.display = "block";
+      document.getElementById("active-order-card").style.display = "block";
       document.getElementById("ao-id").textContent = order.id;
       startCountdown(new Date(order.expires_at));
     }
     function hideActiveOrder() {
       activeOrderId = null;
-      document.getElementById("active-order").style.display = "none";
+      document.getElementById("active-order-card").style.display = "none";
       if (countdownTimer) clearInterval(countdownTimer);
     }
     function startCountdown(expiresAt) {
@@ -282,27 +444,17 @@
         if (diff <= 0) {
           clearInterval(countdownTimer);
           toast("⏰ Waktu habis — order akan kedaluwarsa", true);
-          setTimeout(() => { hideActiveOrder(); refreshProduct(); refreshOrders(); }, 1500);
+          setTimeout(() => { hideActiveOrder(); refreshProducts(); refreshOrders(); }, 1500);
         }
       };
       tick();
       countdownTimer = setInterval(tick, 1000);
     }
 
-    document.getElementById("btn-buy").addEventListener("click", async () => {
-      try {
-        const { data } = await api("/checkout", "POST");
-        toast("✅ Order dibuat: " + data.id);
-        showActiveOrder(data);
-        refreshProduct();
-        refreshOrders();
-      } catch (e) { toast("❌ " + e.message, true); }
-    });
-
     document.getElementById("btn-pay").addEventListener("click", async () => {
       if (!activeOrderId) return;
       try {
-        await api(`/orders/${activeOrderId}/pay`, "POST");
+        await apiCall(`/orders/${activeOrderId}/pay`, "POST", {});
         toast("🎫 Pembayaran sukses! Tiket terbit.");
         hideActiveOrder();
         refreshOrders();
@@ -312,10 +464,10 @@
     document.getElementById("btn-cancel").addEventListener("click", async () => {
       if (!activeOrderId) return;
       try {
-        await api(`/orders/${activeOrderId}/cancel`, "POST");
+        await apiCall(`/orders/${activeOrderId}/cancel`, "POST", {});
         toast("Order dibatalkan, stok dikembalikan.");
         hideActiveOrder();
-        refreshProduct();
+        refreshProducts();
         refreshOrders();
       } catch (e) { toast("❌ " + e.message, true); }
     });
@@ -324,18 +476,14 @@
     let loadTestTimer = null;
 
     document.getElementById("btn-loadtest").addEventListener("click", async () => {
+      const productId = document.getElementById("loadtest-product").value;
       const qty = parseInt(document.getElementById("loadtest-qty").value) || 0;
+      if (!productId) { toast("Belum ada produk untuk diuji", true); return; }
       if (qty <= 0) { toast("Isi jumlah pesanan terlebih dahulu", true); return; }
       const btn = document.getElementById("btn-loadtest");
       btn.disabled = true;
       try {
-        const res = await fetch(API + "/loadtest", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity: qty }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || "Gagal memulai uji beban");
+        const data = await apiCall("/loadtest", "POST", { product_id: productId, quantity: qty });
         toast(`✅ Batch diterima: ${qty} pesanan disiapkan, diproses asinkron di belakang layar`);
         document.getElementById("loadtest-progress").style.display = "block";
         document.getElementById("lt-label").textContent = "Batch " + data.batch_id.replace("BATCH-", "");
@@ -351,8 +499,7 @@
       if (loadTestTimer) clearInterval(loadTestTimer);
       const tick = async () => {
         try {
-          const res = await fetch(`${API}/loadtest/${batchId}`);
-          const { data } = await res.json();
+          const { data } = await apiCall(`/loadtest/${batchId}`);
           const pct = data.requested > 0 ? Math.min(100, Math.round((data.processed / data.requested) * 100)) : 0;
           document.getElementById("lt-percent").textContent = pct + "%";
           document.getElementById("lt-bar").style.width = pct + "%";
@@ -361,7 +508,7 @@
           document.getElementById("lt-processed").textContent = data.processed;
           document.getElementById("lt-success").textContent = data.success;
           document.getElementById("lt-failed").textContent = data.failed;
-          refreshProduct();
+          refreshProducts();
           refreshOrders();
           if (data.requested > 0 && data.processed >= data.requested) {
             clearInterval(loadTestTimer);
@@ -374,10 +521,11 @@
     }
 
     // Inisialisasi + polling berkala.
+    renderAdminCorner();
     loadConfig();
-    refreshProduct();
+    refreshProducts();
     refreshOrders();
-    setInterval(refreshProduct, 2000);
+    setInterval(refreshProducts, 2000);
     setInterval(refreshOrders, 2500);
   </script>
 </body>

@@ -31,6 +31,13 @@ type Config struct {
 	LoadTestMaxQuantity int // batas aman jumlah pesanan per batch
 	LoadTestConcurrency int // jumlah worker paralel yang memproses antrean bulk
 	LoadTestDelayMs     int // simulasi waktu proses per pesanan (ms)
+
+	// Admin (login + RBAC minimal): satu akun tetap, tanpa tabel user.
+	AdminUsername  string
+	AdminPassword  string // dibaca sekali saat startup, langsung di-hash (bcrypt) — lihat main.go
+	AdminPasswordHash string // diisi main.go setelah bcrypt.GenerateFromPassword
+	JWTSecret      string
+	JWTExpiryHours int
 }
 
 // Load membaca konfigurasi dari environment variable dengan nilai default yang aman.
@@ -54,6 +61,11 @@ func Load() *Config {
 		LoadTestMaxQuantity: getEnvInt("LOADTEST_MAX_QUANTITY", 50000),
 		LoadTestConcurrency: getEnvInt("LOADTEST_CONCURRENCY", 20),
 		LoadTestDelayMs:     getEnvInt("LOADTEST_DELAY_MS", 15),
+
+		AdminUsername:  getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:  getEnv("ADMIN_PASSWORD", "admin123"),
+		JWTSecret:      getEnv("JWT_SECRET", "flashsale-dev-secret-change-me"),
+		JWTExpiryHours: getEnvInt("JWT_EXPIRY_HOURS", 2),
 	}
 }
 

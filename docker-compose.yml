@@ -54,7 +54,7 @@ services:
       - "traefik.http.services.flashsale-rabbitmq.loadbalancer.server.port=15672"
 
   app:
-    image: itsanla/s6.tp.flash-sale:v1.1.0
+    image: itsanla/s6.tp.flash-sale:v1.2.0
     container_name: flashsale-app
     environment:
       APP_MODE: all # server (HTTP+UI) + worker (consumer) dalam 1 container
@@ -71,6 +71,11 @@ services:
       LOADTEST_MAX_QUANTITY: "50000" # batas aman jumlah pesanan per batch
       LOADTEST_CONCURRENCY: "20"     # jumlah worker paralel pemroses antrean bulk
       LOADTEST_DELAY_MS: "15"        # simulasi waktu proses per pesanan (ms)
+      # Login Admin (JWT) — satu akun tetap, ganti untuk deployment lain.
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: "FlashSale2026!"
+      JWT_SECRET: "d3b56c1a46d609771e541d540df7d3b980fd5547bd3966af81879c95788774fb"
+      JWT_EXPIRY_HOURS: "2"
     ports:
       - "6003:8080"
     depends_on:

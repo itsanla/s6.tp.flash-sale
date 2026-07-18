@@ -115,7 +115,7 @@ func (w *Worker) startBulkConsumer(ctx context.Context) error {
 				if w.bulkDelay > 0 {
 					time.Sleep(w.bulkDelay) // simulasi waktu proses pesanan
 				}
-				w.uc.ProcessBulkOrder(ctx, msg.BatchID)
+				w.uc.ProcessBulkOrder(ctx, msg.BatchID, msg.ProductID)
 				_ = d.Ack(false)
 			}
 		}()
