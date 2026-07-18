@@ -34,9 +34,10 @@ Terinspirasi dari SKPL EventHub (rekan), tetapi dipersempit ke inti integrasi Re
                     └──────────────┘
 ```
 
-Dua service dari satu image (mirip publisher/consumer di `ms2`):
-- **app** (`APP_MODE=server`) — HTTP API + UI.
-- **worker** (`APP_MODE=worker`) — consumer notifikasi & auto-expire.
+Satu container app (`APP_MODE=all`) menjalankan HTTP API + UI **dan** worker consumer
+(notifikasi & auto-expire) sekaligus. Total 3 container: **app**, **redis**, **rabbitmq**.
+
+> Mode dapat dipisah (`server` / `worker`) bila ingin scale consumer terpisah.
 
 ## Alur Zero-Oversell
 
@@ -65,11 +66,11 @@ Dua service dari satu image (mirip publisher/consumer di `ms2`):
 
 ```bash
 # Checkout 2 tiket
-curl -X POST http://localhost:8095/api/v1/checkout \
+curl -X POST http://localhost:6003/api/v1/checkout \
   -H "Content-Type: application/json" -d '{"quantity": 2}'
 
 # Bayar
-curl -X POST http://localhost:8095/api/v1/orders/ORD-xxxx/pay
+curl -X POST http://localhost:6003/api/v1/orders/ORD-xxxx/pay
 ```
 
 ## Environment Variables
@@ -77,7 +78,7 @@ curl -X POST http://localhost:8095/api/v1/orders/ORD-xxxx/pay
 | Variabel | Default | Keterangan |
 |----------|---------|------------|
 | `APP_MODE` | `all` | `server`, `worker`, atau `all` |
-| `PORT` | `8080` | Port HTTP (di-map ke `8095` di host) |
+| `PORT` | `8080` | Port HTTP (di-map ke `6003` di host) |
 | `REDIS_ADDR` | `localhost:6379` | Alamat Redis |
 | `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | URL RabbitMQ |
 | `ORDER_TTL_SECONDS` | `60` | Batas waktu bayar sebelum auto-expire |
@@ -86,18 +87,26 @@ curl -X POST http://localhost:8095/api/v1/orders/ORD-xxxx/pay
 
 ## Menjalankan (Docker Compose)
 
-Cukup butuh Docker + Docker Compose di host. Redis & RabbitMQ ikut di-provision.
+Semua service (app, redis, rabbitmq) diambil dari **image registry** — tidak ada build.
+Cukup butuh Docker + Docker Compose di host.
 
 ```bash
-docker compose up -d --build
-
-# UI:                http://<host>:8095
-# RabbitMQ UI:       http://<host>:15673  (user/pass: guest/guest)
-
-docker compose logs -f worker   # lihat notifikasi & proses auto-expire
-docker compose down             # hentikan
-docker compose down -v          # hentikan + hapus data
+docker compose up -d     # tarik image & jalankan 3 container
+docker compose logs -f app   # lihat notifikasi & proses auto-expire
+docker compose down          # hentikan & hapus container
 ```
+
+Image aplikasi: [`itsanla/s6.tp.flash-sale`](https://hub.docker.com/r/itsanla/s6.tp.flash-sale) (`v1.0.0`, `latest`).
+
+### Akses
+
+| Layanan | Port langsung | Domain (Traefik, port 80) |
+|---------|---------------|---------------------------|
+| Aplikasi (UI/API) | `http://<ip>:6003` | http://topik-khusus.akademik.anla.works |
+| RabbitMQ mgmt UI | `http://<ip>:6004` | http://rabbitmq.akademik.anla.works |
+| Redis | `<ip>:6005` | — |
+
+RabbitMQ UI login: `guest` / `guest`.
 
 ### Menguji Zero-Oversell
 
@@ -105,7 +114,7 @@ Stok awal 20. Tembak 50 checkout paralel — hanya 20 yang sukses, sisanya `409 
 
 ```bash
 seq 50 | xargs -P50 -I{} curl -s -o /dev/null -w "%{http_code}\n" \
-  -X POST http://localhost:8095/api/v1/checkout \
+  -X POST http://localhost:6003/api/v1/checkout \
   -H "Content-Type: application/json" -d '{"quantity":1}' | sort | uniq -c
 ```
 

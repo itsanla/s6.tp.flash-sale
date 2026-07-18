@@ -1,8 +1,22 @@
+# Flash Sale Mini — semua service dari image registry (tanpa build).
+# Jalankan:  docker compose up -d      Matikan:  docker compose down
+#
+# Akses langsung (port host):
+#   - Aplikasi (UI/API) : http://<ip>:6003
+#   - RabbitMQ mgmt UI   : http://<ip>:6004   (guest / guest)
+#   - Redis              : <ip>:6005
+# Akses via domain (Traefik / Coolify, port 80):
+#   - Aplikasi  : http://topik-khusus.akademik.anla.works
+#   - RabbitMQ  : http://rabbitmq.akademik.anla.works
+
 services:
   redis:
     image: redis:7-alpine
     container_name: flashsale-redis
-    # Tidak dipublish ke host — hanya diakses via jaringan internal compose.
+    ports:
+      - "6005:6379"
+    networks:
+      - flashsale-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -14,19 +28,29 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: flashsale-rabbitmq
     ports:
-      - "15673:15672" # Management UI (opsional, untuk observasi queue)
+      - "6004:15672" # Management UI
+    networks:
+      - flashsale-net
+      - coolify # agar bisa dirouting Traefik
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.flashsale-rabbitmq.rule=Host(`rabbitmq.akademik.anla.works`)"
+      - "traefik.http.routers.flashsale-rabbitmq.entrypoints=http"
+      - "traefik.http.routers.flashsale-rabbitmq.service=flashsale-rabbitmq"
+      - "traefik.http.services.flashsale-rabbitmq.loadbalancer.server.port=15672"
 
   app:
-    build: .
+    image: itsanla/s6.tp.flash-sale:v1.0.0
     container_name: flashsale-app
     environment:
-      APP_MODE: server
+      APP_MODE: all # server (HTTP+UI) + worker (consumer) dalam 1 container
       APP_ENV: production
       PORT: "8080"
       REDIS_ADDR: redis:6379
@@ -35,28 +59,27 @@ services:
       PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
       PRODUCT_STOCK: "20"
     ports:
-      - "8095:8080" # UI & API -> http://<host>:8095
+      - "6003:8080"
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    networks:
+      - flashsale-net
+      - coolify # agar bisa dirouting Traefik
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.flashsale-app.rule=Host(`topik-khusus.akademik.anla.works`)"
+      - "traefik.http.routers.flashsale-app.entrypoints=http"
+      - "traefik.http.routers.flashsale-app.service=flashsale-app"
+      - "traefik.http.services.flashsale-app.loadbalancer.server.port=8080"
 
-  worker:
-    build: .
-    container_name: flashsale-worker
-    environment:
-      APP_MODE: worker
-      APP_ENV: production
-      REDIS_ADDR: redis:6379
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      ORDER_TTL_SECONDS: "60"
-      PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
-      PRODUCT_STOCK: "20"
-    depends_on:
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
+networks:
+  flashsale-net:
+    name: flashsale-net
+    driver: bridge
+  coolify:
+    external: true # network reverse proxy Traefik milik Coolify
