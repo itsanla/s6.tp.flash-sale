@@ -23,6 +23,13 @@ const (
 	DLX                = "flashsale.dlx"               // dead-letter exchange
 	ExpiryProcessQueue = "flashsale.expiry.process"   // consumer pemroses order kedaluwarsa
 	ExpiryRoutingKey   = "expired"
+
+	// Jalur uji beban (load test): pesanan bulk dikirim ke sini agar diproses
+	// asinkron oleh banyak worker paralel — mendemokan RabbitMQ menyerap
+	// lonjakan request jauh lebih cepat dari kecepatan proses aktualnya.
+	BulkExchange   = "flashsale.bulk"
+	BulkQueue      = "flashsale.bulk.queue"
+	BulkRoutingKey = "bulk"
 )
 
 // RabbitMQ membungkus koneksi dan channel AMQP.
@@ -105,6 +112,17 @@ func (r *RabbitMQ) declareTopology() error {
 	if err := ch.QueueBind(ExpiryWaitQueue, ExpiryRoutingKey, ExpiryExchange, false, nil); err != nil {
 		return err
 	}
+
+	// --- Jalur uji beban (bulk) ---
+	if err := ch.ExchangeDeclare(BulkExchange, "direct", true, false, false, false, nil); err != nil {
+		return err
+	}
+	if _, err := ch.QueueDeclare(BulkQueue, true, false, false, false, nil); err != nil {
+		return err
+	}
+	if err := ch.QueueBind(BulkQueue, BulkRoutingKey, BulkExchange, false, nil); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -135,13 +153,41 @@ func (r *RabbitMQ) PublishExpiry(ctx context.Context, msg domain.ExpiryMessage) 
 	})
 }
 
-// Consume mengembalikan channel delivery untuk sebuah queue.
+// PublishBulk mengirim satu pesanan uji beban ke antrean bulk. Non-persistent
+// (transient) karena pesan bersifat sementara demi throughput maksimal saat
+// mengirim puluhan ribu pesan sekaligus.
+func (r *RabbitMQ) PublishBulk(ctx context.Context, msg domain.BulkMessage) error {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return r.channel.PublishWithContext(ctx, BulkExchange, BulkRoutingKey, false, false, amqp.Publishing{
+		ContentType: "application/json",
+		Body:        body,
+	})
+}
+
+// Consume mengembalikan channel delivery untuk sebuah queue, memproses satu
+// per satu (prefetch=1) agar adil antar worker.
 func (r *RabbitMQ) Consume(queueName string) (<-chan amqp.Delivery, error) {
-	// Proses satu per satu agar adil antar worker.
 	if err := r.channel.Qos(1, 0, false); err != nil {
 		return nil, err
 	}
 	return r.channel.Consume(queueName, "", false, false, false, false, nil)
+}
+
+// ConsumeWithPrefetch membuka channel AMQP terpisah dengan prefetch custom,
+// dipakai bulk consumer agar tidak mengganggu QoS consumer notify/expiry yang
+// berbagi channel utama.
+func (r *RabbitMQ) ConsumeWithPrefetch(queueName string, prefetch int) (<-chan amqp.Delivery, error) {
+	ch, err := r.conn.Channel()
+	if err != nil {
+		return nil, err
+	}
+	if err := ch.Qos(prefetch, 0, false); err != nil {
+		return nil, err
+	}
+	return ch.Consume(queueName, "", false, false, false, false, nil)
 }
 
 func (r *RabbitMQ) Close() {

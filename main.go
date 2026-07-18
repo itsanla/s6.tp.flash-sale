@@ -57,14 +57,14 @@ func main() {
 	}
 	defer mq.Close()
 
-	uc := usecase.NewFlashSaleUsecase(stockRepo, mq, time.Duration(cfg.OrderTTLSeconds)*time.Second)
+	uc := usecase.NewFlashSaleUsecase(stockRepo, mq, time.Duration(cfg.OrderTTLSeconds)*time.Second, cfg.ProductID, cfg.LoadTestMaxQuantity)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// --- Worker (consumer) ---
 	if cfg.AppMode == "worker" || cfg.AppMode == "all" {
-		w := worker.New(mq, uc)
+		w := worker.New(mq, uc, cfg.LoadTestConcurrency, time.Duration(cfg.LoadTestDelayMs)*time.Millisecond)
 		if err := w.Start(ctx); err != nil {
 			log.Fatalf("Gagal menjalankan worker: %v", err)
 		}
@@ -108,8 +108,9 @@ func startServer(cfg *config.Config, uc *usecase.FlashSaleUsecase, rdb *redis.Cl
 	// Beri UI info produk mana yang aktif.
 	r.GET("/api/v1/config", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"product_id":        cfg.ProductID,
-			"order_ttl_seconds": cfg.OrderTTLSeconds,
+			"product_id":             cfg.ProductID,
+			"order_ttl_seconds":      cfg.OrderTTLSeconds,
+			"loadtest_max_quantity":  cfg.LoadTestMaxQuantity,
 		})
 	})
 

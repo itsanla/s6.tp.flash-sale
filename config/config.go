@@ -26,6 +26,11 @@ type Config struct {
 	ProductID       string // id produk yang dijual saat flash sale
 	ProductName     string
 	ProductStock    int // stok awal yang di-seed saat startup
+
+	// Load test (demo pembuktian throughput RabbitMQ + Redis di bawah beban tinggi)
+	LoadTestMaxQuantity int // batas aman jumlah pesanan per batch
+	LoadTestConcurrency int // jumlah worker paralel yang memproses antrean bulk
+	LoadTestDelayMs     int // simulasi waktu proses per pesanan (ms)
 }
 
 // Load membaca konfigurasi dari environment variable dengan nilai default yang aman.
@@ -45,6 +50,10 @@ func Load() *Config {
 		ProductID:       getEnv("PRODUCT_ID", "TICKET-EVENTHUB-2026"),
 		ProductName:     getEnv("PRODUCT_NAME", "Tiket Flash Sale EventHub 2026"),
 		ProductStock:    getEnvInt("PRODUCT_STOCK", 20),
+
+		LoadTestMaxQuantity: getEnvInt("LOADTEST_MAX_QUANTITY", 50000),
+		LoadTestConcurrency: getEnvInt("LOADTEST_CONCURRENCY", 20),
+		LoadTestDelayMs:     getEnvInt("LOADTEST_DELAY_MS", 15),
 	}
 }
 

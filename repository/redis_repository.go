@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"flashsale/domain"
@@ -27,6 +28,7 @@ func NewRedisStockRepository(client *redis.Client) domain.StockRepository {
 func stockKey(productID string) string { return "flashsale:stock:" + productID }
 func nameKey(productID string) string  { return "flashsale:product:name:" + productID }
 func orderKey(orderID string) string   { return "flashsale:order:" + orderID }
+func batchKey(batchID string) string   { return "flashsale:batch:" + batchID }
 
 const orderIndexKey = "flashsale:orders" // sorted set: member=orderID, score=unix ts
 
@@ -146,4 +148,56 @@ func (r *redisStockRepository) ListOrders(ctx context.Context, limit int) ([]dom
 		orders = append(orders, *o)
 	}
 	return orders, nil
+}
+
+func (r *redisStockRepository) CreateBatch(ctx context.Context, batchID string, requested int64) error {
+	pipe := r.client.TxPipeline()
+	pipe.HSet(ctx, batchKey(batchID), map[string]any{
+		"requested": requested,
+		"submitted": 0,
+		"processed": 0,
+		"success":   0,
+		"failed":    0,
+	})
+	pipe.Expire(ctx, batchKey(batchID), 24*time.Hour)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (r *redisStockRepository) SetBatchSubmitted(ctx context.Context, batchID string, submitted int64) error {
+	return r.client.HSet(ctx, batchKey(batchID), "submitted", submitted).Err()
+}
+
+func (r *redisStockRepository) IncrBatchProcessed(ctx context.Context, batchID string, success bool) error {
+	pipe := r.client.TxPipeline()
+	pipe.HIncrBy(ctx, batchKey(batchID), "processed", 1)
+	if success {
+		pipe.HIncrBy(ctx, batchKey(batchID), "success", 1)
+	} else {
+		pipe.HIncrBy(ctx, batchKey(batchID), "failed", 1)
+	}
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (r *redisStockRepository) GetBatch(ctx context.Context, batchID string) (*domain.BatchStatus, error) {
+	vals, err := r.client.HGetAll(ctx, batchKey(batchID)).Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(vals) == 0 {
+		return nil, domain.ErrBatchNotFound
+	}
+	get := func(k string) int64 {
+		n, _ := strconv.ParseInt(vals[k], 10, 64)
+		return n
+	}
+	return &domain.BatchStatus{
+		BatchID:   batchID,
+		Requested: get("requested"),
+		Submitted: get("submitted"),
+		Processed: get("processed"),
+		Success:   get("success"),
+		Failed:    get("failed"),
+	}, nil
 }

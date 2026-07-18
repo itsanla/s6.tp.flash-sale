@@ -150,6 +150,36 @@
       </div>
     </div>
 
+    <div class="card" style="margin-top:18px;">
+      <h2>⚡ Uji Beban (Load Test)</h2>
+      <p style="color:var(--muted); font-size:13px; margin:-6px 0 14px; line-height:1.6;">
+        Kirim banyak pesanan sekaligus untuk membuktikan Redis &amp; RabbitMQ benar bekerja di bawah beban tinggi.
+        Klien langsung dapat respons sukses; pemrosesan nyata (reservasi stok, buat order, notifikasi) berjalan
+        <b>asinkron di belakang layar</b> lewat antrean RabbitMQ — perhatikan progres &amp; Riwayat Order bertambah bertahap.
+      </p>
+      <div class="qty">
+        <label for="loadtest-qty">Jumlah pesanan</label>
+        <input type="number" id="loadtest-qty" value="1000" min="1" style="width:120px;" />
+        <button class="btn-pay" id="btn-loadtest" style="flex:none; padding:12px 22px;">🚀 Kirim Serentak</button>
+      </div>
+      <div id="loadtest-progress" style="display:none; margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:6px;">
+          <span id="lt-label">Batch —</span>
+          <span id="lt-percent">0%</span>
+        </div>
+        <div style="background:var(--card2); border:1px solid var(--border); border-radius:8px; height:14px; overflow:hidden;">
+          <div id="lt-bar" style="height:100%; width:0%; background:linear-gradient(90deg, var(--blue), var(--green)); transition: width .3s;"></div>
+        </div>
+        <div style="display:flex; gap:20px; margin-top:12px; font-size:13px; flex-wrap:wrap;">
+          <span>Diminta: <b id="lt-requested">0</b></span>
+          <span>Dikirim ke antrean: <b id="lt-submitted">0</b></span>
+          <span>Diproses: <b id="lt-processed">0</b></span>
+          <span style="color:var(--green);">Sukses: <b id="lt-success">0</b></span>
+          <span style="color:var(--accent);">Gagal: <b id="lt-failed">0</b></span>
+        </div>
+      </div>
+    </div>
+
     <div class="foot">
       Alur: <b>Beli</b> → stok dikurangi atomik di Redis → order PENDING → pesan dijadwalkan di RabbitMQ (TTL).<br>
       Jika tidak dibayar sampai batas waktu → pesan masuk <b>Dead Letter Queue</b> → worker meng-<i>expire</i> order &amp; mengembalikan stok.
@@ -289,6 +319,59 @@
         refreshOrders();
       } catch (e) { toast("❌ " + e.message, true); }
     });
+
+    // --- Uji Beban (Load Test) ---
+    let loadTestTimer = null;
+
+    document.getElementById("btn-loadtest").addEventListener("click", async () => {
+      const qty = parseInt(document.getElementById("loadtest-qty").value) || 0;
+      if (qty <= 0) { toast("Isi jumlah pesanan terlebih dahulu", true); return; }
+      const btn = document.getElementById("btn-loadtest");
+      btn.disabled = true;
+      try {
+        const res = await fetch(API + "/loadtest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantity: qty }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Gagal memulai uji beban");
+        toast(`✅ Batch diterima: ${qty} pesanan disiapkan, diproses asinkron di belakang layar`);
+        document.getElementById("loadtest-progress").style.display = "block";
+        document.getElementById("lt-label").textContent = "Batch " + data.batch_id.replace("BATCH-", "");
+        pollLoadTest(data.batch_id);
+      } catch (e) {
+        toast("❌ " + e.message, true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function pollLoadTest(batchId) {
+      if (loadTestTimer) clearInterval(loadTestTimer);
+      const tick = async () => {
+        try {
+          const res = await fetch(`${API}/loadtest/${batchId}`);
+          const { data } = await res.json();
+          const pct = data.requested > 0 ? Math.min(100, Math.round((data.processed / data.requested) * 100)) : 0;
+          document.getElementById("lt-percent").textContent = pct + "%";
+          document.getElementById("lt-bar").style.width = pct + "%";
+          document.getElementById("lt-requested").textContent = data.requested;
+          document.getElementById("lt-submitted").textContent = data.submitted;
+          document.getElementById("lt-processed").textContent = data.processed;
+          document.getElementById("lt-success").textContent = data.success;
+          document.getElementById("lt-failed").textContent = data.failed;
+          refreshProduct();
+          refreshOrders();
+          if (data.requested > 0 && data.processed >= data.requested) {
+            clearInterval(loadTestTimer);
+            toast(`🎉 Batch selesai: ${data.success} sukses, ${data.failed} gagal`);
+          }
+        } catch (e) { /* diam, coba lagi tick berikutnya */ }
+      };
+      tick();
+      loadTestTimer = setInterval(tick, 400);
+    }
 
     // Inisialisasi + polling berkala.
     loadConfig();

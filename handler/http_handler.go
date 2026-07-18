@@ -28,6 +28,9 @@ func Register(r *gin.Engine, uc *usecase.FlashSaleUsecase, cfg *config.Config) {
 		api.POST("/orders/:id/cancel", h.cancel)
 		api.GET("/orders/:id", h.getOrder)
 		api.GET("/orders", h.listOrders)
+
+		api.POST("/loadtest", h.startLoadTest)
+		api.GET("/loadtest/:batch_id", h.getLoadTestStatus)
 	}
 }
 
@@ -101,14 +104,48 @@ func (h *FlashSaleHandler) listOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": orders})
 }
 
+type loadTestRequest struct {
+	Quantity int64 `json:"quantity"`
+}
+
+// startLoadTest menerima permintaan uji beban dan langsung merespons sukses;
+// pemrosesan aktual (reservasi stok + order + notifikasi) berjalan asinkron
+// lewat RabbitMQ, progresnya dipantau via GET /loadtest/:batch_id.
+func (h *FlashSaleHandler) startLoadTest(c *gin.Context) {
+	var req loadTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Quantity <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "quantity wajib diisi dan lebih dari 0"})
+		return
+	}
+	batchID, err := h.uc.StartBulkLoadTest(c.Request.Context(), req.Quantity)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{
+		"success":  true,
+		"message":  "batch diterima, diproses asinkron di belakang layar via RabbitMQ",
+		"batch_id": batchID,
+	})
+}
+
+func (h *FlashSaleHandler) getLoadTestStatus(c *gin.Context) {
+	status, err := h.uc.GetBatch(c.Request.Context(), c.Param("batch_id"))
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": status})
+}
+
 // respondErr memetakan error domain ke HTTP status yang sesuai.
 func respondErr(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domain.ErrOutOfStock):
 		c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
-	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound):
+	case errors.Is(err, domain.ErrProductNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrBatchNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
-	case errors.Is(err, domain.ErrOrderNotPending), errors.Is(err, domain.ErrOrderExpired), errors.Is(err, domain.ErrInvalidQuantity):
+	case errors.Is(err, domain.ErrOrderNotPending), errors.Is(err, domain.ErrOrderExpired), errors.Is(err, domain.ErrInvalidQuantity), errors.Is(err, domain.ErrBatchTooLarge):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"success": false, "message": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})

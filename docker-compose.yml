@@ -54,7 +54,7 @@ services:
       - "traefik.http.services.flashsale-rabbitmq.loadbalancer.server.port=15672"
 
   app:
-    image: itsanla/s6.tp.flash-sale:v1.0.0
+    image: itsanla/s6.tp.flash-sale:v1.1.0
     container_name: flashsale-app
     environment:
       APP_MODE: all # server (HTTP+UI) + worker (consumer) dalam 1 container
@@ -67,6 +67,10 @@ services:
       ORDER_TTL_SECONDS: "60"
       PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
       PRODUCT_STOCK: "20"
+      # Uji beban (load test) — demo throughput RabbitMQ + Redis
+      LOADTEST_MAX_QUANTITY: "50000" # batas aman jumlah pesanan per batch
+      LOADTEST_CONCURRENCY: "20"     # jumlah worker paralel pemroses antrean bulk
+      LOADTEST_DELAY_MS: "15"        # simulasi waktu proses per pesanan (ms)
     ports:
       - "6003:8080"
     depends_on:

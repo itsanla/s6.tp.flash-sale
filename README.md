@@ -49,6 +49,23 @@ Satu container app (`APP_MODE=all`) menjalankan HTTP API + UI **dan** worker con
 4. Jika dibayar (`POST /orders/:id/pay`) sebelum kedaluwarsa → status `PAID`.
 5. Jika **tidak** dibayar → setelah 60 detik pesan di **wait queue** di-*dead-letter* ke `expiry.process` → `worker` meng-expire order & mengembalikan stok (`INCRBY`).
 
+## Uji Beban (Load Test) — Bukti RabbitMQ & Redis Bekerja di Bawah Beban Tinggi
+
+Panel "⚡ Uji Beban" di UI mendemokan **decoupling** lewat message queue: client mengirim N pesanan sekaligus (mis. 10.000), langsung dapat respons sukses instan, sementara pemrosesan nyata terjadi asinkron di belakang layar.
+
+Alur `POST /api/v1/loadtest {"quantity": N}`:
+1. Stok ditambah sejumlah N (`INCRBY`) — supaya seluruh batch bisa berhasil; fokus uji ini adalah **throughput queue**, bukan zero-oversell (yang sudah dibuktikan lewat checkout normal & uji 50-paralel di atas).
+2. Sebuah `batch_id` dibuat & tracker progres diinisialisasi di Redis (hash: `requested/submitted/processed/success/failed`).
+3. Respons **202** dikembalikan segera ke client.
+4. Di background (goroutine terpisah), N pesan dipublish ke antrean `flashsale.bulk.queue`.
+5. Beberapa worker paralel (`LOADTEST_CONCURRENCY`) mengonsumsi antrean tsb secara *competing consumers* — tiap pesan memicu **checkout + auto-pay nyata** (reservasi atomik Redis, buat order, publish notifikasi), lalu progres di-update (`HINCRBY`).
+6. UI polling `GET /api/v1/loadtest/:batch_id` tiap 400ms → progress bar & "Riwayat Order" terlihat bertambah bertahap sampai selesai.
+
+```bash
+curl -X POST http://localhost:6003/api/v1/loadtest -H "Content-Type: application/json" -d '{"quantity": 10000}'
+curl http://localhost:6003/api/v1/loadtest/BATCH-xxxx
+```
+
 ## Endpoints API
 
 | Method | Path | Deskripsi |
@@ -61,6 +78,8 @@ Satu container app (`APP_MODE=all`) menjalankan HTTP API + UI **dan** worker con
 | `POST` | `/api/v1/orders/:id/cancel` | Batalkan order & kembalikan stok |
 | `GET`  | `/api/v1/orders/:id` | Detail satu order |
 | `GET`  | `/api/v1/orders` | 50 order terbaru |
+| `POST` | `/api/v1/loadtest` | Mulai uji beban N pesanan (async via RabbitMQ) |
+| `GET`  | `/api/v1/loadtest/:batch_id` | Progres real-time sebuah batch uji beban |
 
 ### Contoh Request
 
@@ -84,6 +103,9 @@ curl -X POST http://localhost:6003/api/v1/orders/ORD-xxxx/pay
 | `ORDER_TTL_SECONDS` | `60` | Batas waktu bayar sebelum auto-expire |
 | `PRODUCT_NAME` | `Tiket Flash Sale EventHub 2026` | Nama produk |
 | `PRODUCT_STOCK` | `20` | Stok awal (di-seed sekali) |
+| `LOADTEST_MAX_QUANTITY` | `50000` | Batas aman jumlah pesanan per batch uji beban |
+| `LOADTEST_CONCURRENCY` | `20` | Jumlah worker paralel pemroses antrean bulk |
+| `LOADTEST_DELAY_MS` | `15` | Simulasi waktu proses per pesanan (ms) |
 
 ## Menjalankan (Docker Compose)
 
@@ -96,7 +118,7 @@ docker compose logs -f app   # lihat notifikasi & proses auto-expire
 docker compose down          # hentikan & hapus container
 ```
 
-Image aplikasi: [`itsanla/s6.tp.flash-sale`](https://hub.docker.com/r/itsanla/s6.tp.flash-sale) (`v1.0.0`, `latest`).
+Image aplikasi: [`itsanla/s6.tp.flash-sale`](https://hub.docker.com/r/itsanla/s6.tp.flash-sale) (`v1.1.0`, `latest`).
 
 ### Akses
 
