@@ -15,7 +15,8 @@ COPY web/ ./
 RUN npm run build
 
 # ---- Tahap 2: build binary Go ----
-FROM golang:1.23-alpine AS backend
+# Versi Go mengikuti syarat minimum driver SQLite murni Go yang dipakai.
+FROM golang:1.25-alpine AS backend
 
 WORKDIR /app
 RUN apk add --no-cache git

@@ -172,5 +172,5 @@ Image aplikasi: [`itsanla/s6.tp.flash-sale`](https://hub.docker.com/r/itsanla/s6
 
 ## Stack
 
-Go 1.23 · Gin · modernc SQLite (tanpa CGO) · go-redis v9 · amqp091-go · golang-jwt ·
+Go 1.25 · Gin · modernc SQLite (tanpa CGO) · go-redis v9 · amqp091-go · golang-jwt ·
 React 18 · Vite 5 · React Router 6 · Redis 7 · RabbitMQ 3 · Docker Compose
