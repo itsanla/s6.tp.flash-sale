@@ -83,7 +83,6 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
 CREATE TABLE IF NOT EXISTS order_items (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +117,11 @@ CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_code);
 		return err
 	}
 	if err := addMissingColumns(db); err != nil {
+		return err
+	}
+	// Index yang bergantung pada kolom tambahan dibuat setelah kolomnya dipastikan ada,
+	// supaya basis data lama tidak gagal saat dimigrasikan.
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)`); err != nil {
 		return err
 	}
 	if err := seedRides(db); err != nil {
