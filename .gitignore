@@ -1,8 +1,19 @@
 # Binary hasil build
-/flashsale
+/wahanapark
 *.exe
 
-# Env & log lokal
+# Basis data SQLite lokal
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Dependensi dan hasil build frontend
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+
+# Env dan log
 .env
 *.log
 

@@ -8,44 +8,47 @@ import (
 // Config menampung seluruh konfigurasi aplikasi yang dibaca dari environment variable.
 type Config struct {
 	// HTTP
-	Port   string
-	AppEnv string
-	// Mode: "server" (HTTP + UI), "worker" (consumer RabbitMQ), atau "all" (keduanya)
-	AppMode string
+	Port    string
+	AppEnv  string
+	AppMode string // "server", "worker", atau "all"
 
-	// Redis (topik m1 — in-memory store & atomic counter)
+	// SQLite (sumber kebenaran data: wahana, order, tiket)
+	DatabasePath string
+
+	// Redis (kuota atomik + cache)
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
 
-	// RabbitMQ (topik m2 — message queue)
+	// RabbitMQ (pemrosesan asinkron)
 	RabbitMQURL string
 
-	// Flash sale
-	OrderTTLSeconds int    // batas waktu bayar sebelum order auto-expire
-	ProductID       string // id produk yang dijual saat flash sale
-	ProductName     string
-	ProductStock    int // stok awal yang di-seed saat startup
+	// Aturan bisnis
+	PaymentTTLMinutes int // batas waktu bayar QRIS sebelum order kedaluwarsa
+	QuotaTTLDays      int // berapa lama kunci kuota harian disimpan di Redis
+	CacheTTLSeconds   int // masa berlaku cache katalog wahana
 
-	// Load test (demo pembuktian throughput RabbitMQ + Redis di bawah beban tinggi)
-	LoadTestMaxQuantity int // batas aman jumlah pesanan per batch
-	LoadTestConcurrency int // jumlah worker paralel yang memproses antrean bulk
-	LoadTestDelayMs     int // simulasi waktu proses per pesanan (ms)
+	// Merchant QRIS (simulasi, bukan merchant sungguhan)
+	MerchantName string
+	MerchantCity string
+	MerchantID   string
 
-	// Admin (login + RBAC minimal): satu akun tetap, tanpa tabel user.
-	AdminUsername  string
-	AdminPassword  string // dibaca sekali saat startup, langsung di-hash (bcrypt) — lihat main.go
-	AdminPasswordHash string // diisi main.go setelah bcrypt.GenerateFromPassword
-	JWTSecret      string
-	JWTExpiryHours int
+	// Admin
+	AdminUsername     string
+	AdminPassword     string
+	AdminPasswordHash string // diisi saat startup hasil bcrypt
+	JWTSecret         string
+	JWTExpiryHours    int
 }
 
-// Load membaca konfigurasi dari environment variable dengan nilai default yang aman.
+// Load membaca konfigurasi dari environment variable dengan default yang aman.
 func Load() *Config {
 	return &Config{
 		Port:    getEnv("PORT", "8080"),
 		AppEnv:  getEnv("APP_ENV", "development"),
 		AppMode: getEnv("APP_MODE", "all"),
+
+		DatabasePath: getEnv("DATABASE_PATH", "data/wahana.db"),
 
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
@@ -53,19 +56,18 @@ func Load() *Config {
 
 		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 
-		OrderTTLSeconds: getEnvInt("ORDER_TTL_SECONDS", 60),
-		ProductID:       getEnv("PRODUCT_ID", "TICKET-EVENTHUB-2026"),
-		ProductName:     getEnv("PRODUCT_NAME", "Tiket Flash Sale EventHub 2026"),
-		ProductStock:    getEnvInt("PRODUCT_STOCK", 20),
+		PaymentTTLMinutes: getEnvInt("PAYMENT_TTL_MINUTES", 10),
+		QuotaTTLDays:      getEnvInt("QUOTA_TTL_DAYS", 45),
+		CacheTTLSeconds:   getEnvInt("CACHE_TTL_SECONDS", 60),
 
-		LoadTestMaxQuantity: getEnvInt("LOADTEST_MAX_QUANTITY", 50000),
-		LoadTestConcurrency: getEnvInt("LOADTEST_CONCURRENCY", 20),
-		LoadTestDelayMs:     getEnvInt("LOADTEST_DELAY_MS", 15),
+		MerchantName: getEnv("MERCHANT_NAME", "TAMAN WAHANA SIMULASI"),
+		MerchantCity: getEnv("MERCHANT_CITY", "PADANG"),
+		MerchantID:   getEnv("MERCHANT_ID", "936000091100000001"),
 
 		AdminUsername:  getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword:  getEnv("ADMIN_PASSWORD", "admin123"),
-		JWTSecret:      getEnv("JWT_SECRET", "flashsale-dev-secret-change-me"),
-		JWTExpiryHours: getEnvInt("JWT_EXPIRY_HOURS", 2),
+		JWTSecret:      getEnv("JWT_SECRET", "wahana-dev-secret-change-me"),
+		JWTExpiryHours: getEnvInt("JWT_EXPIRY_HOURS", 4),
 	}
 }
 

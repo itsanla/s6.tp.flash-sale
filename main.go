@@ -2,20 +2,23 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"flashsale/config"
-	"flashsale/domain"
-	"flashsale/handler"
-	"flashsale/middleware"
-	"flashsale/queue"
-	"flashsale/repository"
-	"flashsale/usecase"
-	"flashsale/worker"
+	"wahanapark/config"
+	"wahanapark/handler"
+	"wahanapark/middleware"
+	"wahanapark/qris"
+	"wahanapark/queue"
+	"wahanapark/repository/rediscache"
+	"wahanapark/repository/sqlite"
+	"wahanapark/usecase"
+	"wahanapark/web"
+	"wahanapark/worker"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -24,123 +27,120 @@ import (
 
 func main() {
 	cfg := config.Load()
-	log.Printf("Flash Sale Mini | mode=%s env=%s", cfg.AppMode, cfg.AppEnv)
+	log.Printf("Taman Wahana Nusantara | mode=%s env=%s", cfg.AppMode, cfg.AppEnv)
 
-	// Hash password admin sekali di awal — runtime selalu membandingkan lewat
-	// bcrypt, bukan plaintext, walau sumbernya env var deployment.
+	// Password admin di-hash sekali saat startup supaya runtime tidak pernah
+	// membandingkan password dalam bentuk teks biasa.
 	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
-		log.Fatalf("Gagal hashing password admin: %v", err)
+		log.Fatalf("Gagal menyiapkan kredensial admin: %v", err)
 	}
 	cfg.AdminPasswordHash = string(hash)
 
-	// --- Redis (m1) ---
+	// --- SQLite: sumber kebenaran data wahana, order, dan tiket ---
+	db, err := sqlite.Open(cfg.DatabasePath)
+	if err != nil {
+		log.Fatalf("Gagal menyiapkan SQLite: %v", err)
+	}
+	defer db.Close()
+	log.Printf("SQLite siap pada %s", cfg.DatabasePath)
+
+	rideRepo := sqlite.NewRideRepository(db)
+	orderRepo := sqlite.NewOrderRepository(db)
+	ticketRepo := sqlite.NewTicketRepository(db)
+
+	// --- Redis: kuota atomik dan cache ---
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
 	})
-	if err := pingRedis(rdb); err != nil {
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := rdb.Ping(pingCtx).Err(); err != nil {
+		cancelPing()
 		log.Fatalf("Gagal terhubung ke Redis pada %s: %v", cfg.RedisAddr, err)
 	}
+	cancelPing()
+	defer rdb.Close()
 	log.Printf("Redis terhubung pada %s", cfg.RedisAddr)
 
-	stockRepo := repository.NewRedisStockRepository(rdb)
+	quotaStore := rediscache.NewQuotaStore(rdb, cfg.QuotaTTLDays)
+	cache := rediscache.NewCache(rdb)
 
-	// Seed produk flash sale (hanya jika belum ada).
-	seedCtx, cancelSeed := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := stockRepo.SeedProduct(seedCtx, domain.Product{
-		ID:    cfg.ProductID,
-		Name:  cfg.ProductName,
-		Stock: int64(cfg.ProductStock),
-	}); err != nil {
-		log.Fatalf("Gagal seed produk: %v", err)
-	}
-	cancelSeed()
-	log.Printf("Produk siap: %s (stok awal %d)", cfg.ProductName, cfg.ProductStock)
-
-	// --- RabbitMQ (m2) ---
-	mq, err := queue.Connect(cfg.RabbitMQURL, time.Duration(cfg.OrderTTLSeconds)*time.Second)
+	// --- RabbitMQ: pemrosesan asinkron ---
+	paymentTTL := time.Duration(cfg.PaymentTTLMinutes) * time.Minute
+	mq, err := queue.Connect(cfg.RabbitMQURL, paymentTTL)
 	if err != nil {
 		log.Fatalf("Gagal terhubung ke RabbitMQ: %v", err)
 	}
 	defer mq.Close()
 
-	uc := usecase.NewFlashSaleUsecase(stockRepo, mq, time.Duration(cfg.OrderTTLSeconds)*time.Second, cfg.LoadTestMaxQuantity)
+	qrisGen := qris.NewGenerator(cfg.MerchantName, cfg.MerchantCity, cfg.MerchantID)
+
+	catalogUC := usecase.NewCatalogUsecase(rideRepo, quotaStore, cache,
+		time.Duration(cfg.CacheTTLSeconds)*time.Second)
+	orderUC := usecase.NewOrderUsecase(orderRepo, rideRepo, ticketRepo, quotaStore,
+		cache, mq, qrisGen, paymentTTL)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// --- Worker (consumer) ---
 	if cfg.AppMode == "worker" || cfg.AppMode == "all" {
-		w := worker.New(mq, uc, cfg.LoadTestConcurrency, time.Duration(cfg.LoadTestDelayMs)*time.Millisecond)
+		w := worker.New(mq, orderUC)
 		if err := w.Start(ctx); err != nil {
 			log.Fatalf("Gagal menjalankan worker: %v", err)
 		}
 	}
 
-	// --- HTTP server + UI ---
 	var srv *http.Server
 	if cfg.AppMode == "server" || cfg.AppMode == "all" {
-		srv = startServer(cfg, uc, rdb)
+		srv = startServer(cfg, catalogUC, orderUC, mq, qrisGen)
 	}
-
 	if cfg.AppMode == "worker" {
-		log.Println("Mode worker: menunggu pesan...")
+		log.Println("Mode worker: menunggu pesan dari antrean")
 	}
 
 	<-ctx.Done()
-	log.Println("Sinyal shutdown diterima, mematikan dengan graceful...")
+	log.Println("Sinyal shutdown diterima, mematikan aplikasi dengan rapi")
 
 	if srv != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Server gagal shutdown: %v", err)
+			log.Printf("Server gagal dimatikan dengan rapi: %v", err)
 		}
 	}
-	_ = rdb.Close()
 	log.Println("Selesai.")
 }
 
-func startServer(cfg *config.Config, uc *usecase.FlashSaleUsecase, rdb *redis.Client) *http.Server {
+func startServer(
+	cfg *config.Config,
+	catalogUC *usecase.CatalogUsecase,
+	orderUC *usecase.OrderUsecase,
+	mq *queue.RabbitMQ,
+	qrisGen *qris.Generator,
+) *http.Server {
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
 	r.Use(middleware.Logger(), middleware.CORS(), gin.Recovery())
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "flash-sale", "mode": cfg.AppMode})
-	})
+	// Hasil build React ikut tertanam di dalam binary, sehingga satu container sudah
+	// berisi antarmuka, backend, dan basis data sekaligus.
+	webFS, err := fs.Sub(web.DistFS, "dist")
+	if err != nil {
+		log.Fatalf("Gagal membaca berkas antarmuka: %v", err)
+	}
 
-	// Info umum untuk UI (bukan rahasia).
-	r.GET("/api/v1/config", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"default_product_id":   cfg.ProductID,
-			"order_ttl_seconds":    cfg.OrderTTLSeconds,
-			"loadtest_max_quantity": cfg.LoadTestMaxQuantity,
-		})
-	})
-
-	handler.Register(r, uc, cfg)
-
-	// UI statis (tanpa framework) dilayani dari folder web/.
-	r.StaticFile("/", "./web/index.html")
-	r.Static("/static", "./web")
+	handler.Register(r, cfg, catalogUC, orderUC, mq, qrisGen, webFS)
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
 	go func() {
-		log.Printf("HTTP server berjalan di port %s — buka http://localhost:%s", cfg.Port, cfg.Port)
+		log.Printf("Server berjalan di port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server gagal berjalan: %v", err)
 		}
 	}()
 	return srv
-}
-
-func pingRedis(rdb *redis.Client) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return rdb.Ping(ctx).Err()
 }

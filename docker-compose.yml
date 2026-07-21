@@ -1,22 +1,24 @@
-# Flash Sale Mini — semua service dari image registry (tanpa build).
-# Jalankan:  docker compose up -d      Matikan:  docker compose down
+# Taman Wahana Nusantara
+# Seluruh service diambil dari image registry, tidak ada proses build di sini.
 #
-# Akses langsung (port host):
-#   - Aplikasi (UI/API) : http://<ip>:6003
-#   - RabbitMQ mgmt UI   : http://<ip>:6004   (guest / guest)
-#   - Redis              : <ip>:6005
-# Akses via domain (Traefik / Coolify, HTTPS + auto redirect dari http, Let's Encrypt):
-#   - Aplikasi  : https://topik-khusus.akademik.anla.works
-#   - RabbitMQ  : https://rabbitmq.akademik.anla.works
+# Akses langsung lewat port host:
+#   - Aplikasi (antarmuka + API) : http://<ip>:6003
+#   - RabbitMQ management        : http://<ip>:6004   (guest / guest)
+#   - Redis                      : <ip>:6005
+# Akses lewat domain (Traefik milik Coolify, HTTPS otomatis Let's Encrypt):
+#   - Aplikasi : https://topik-khusus.akademik.anla.works
+#   - RabbitMQ : https://rabbitmq.akademik.anla.works
 
 services:
   redis:
     image: redis:7-alpine
-    container_name: flashsale-redis
+    container_name: wahana-redis
     ports:
       - "6005:6379"
     networks:
-      - flashsale-net
+      - wahana-net
+    volumes:
+      - wahana-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -26,12 +28,14 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: flashsale-rabbitmq
+    container_name: wahana-rabbitmq
     ports:
-      - "6004:15672" # Management UI
+      - "6004:15672"
     networks:
-      - flashsale-net
-      - coolify # agar bisa dirouting Traefik
+      - wahana-net
+      - coolify
+    volumes:
+      - wahana-rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -41,70 +45,72 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
-      # Router http: hanya untuk redirect ke https.
-      - "traefik.http.routers.flashsale-rabbitmq-http.rule=Host(`rabbitmq.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-rabbitmq-http.entrypoints=http"
-      - "traefik.http.routers.flashsale-rabbitmq-http.middlewares=flashsale-rabbitmq-redirect"
-      - "traefik.http.middlewares.flashsale-rabbitmq-redirect.redirectscheme.scheme=https"
-      # Router https: TLS via Let's Encrypt (resolver Coolify).
-      - "traefik.http.routers.flashsale-rabbitmq.rule=Host(`rabbitmq.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-rabbitmq.entrypoints=https"
-      - "traefik.http.routers.flashsale-rabbitmq.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.flashsale-rabbitmq.service=flashsale-rabbitmq"
-      - "traefik.http.services.flashsale-rabbitmq.loadbalancer.server.port=15672"
+      - "traefik.http.routers.wahana-rabbitmq-http.rule=Host(`rabbitmq.akademik.anla.works`)"
+      - "traefik.http.routers.wahana-rabbitmq-http.entrypoints=http"
+      - "traefik.http.routers.wahana-rabbitmq-http.middlewares=wahana-rabbitmq-redirect"
+      - "traefik.http.middlewares.wahana-rabbitmq-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.wahana-rabbitmq.rule=Host(`rabbitmq.akademik.anla.works`)"
+      - "traefik.http.routers.wahana-rabbitmq.entrypoints=https"
+      - "traefik.http.routers.wahana-rabbitmq.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wahana-rabbitmq.service=wahana-rabbitmq"
+      - "traefik.http.services.wahana-rabbitmq.loadbalancer.server.port=15672"
 
   app:
-    image: itsanla/s6.tp.flash-sale:v1.2.0
-    container_name: flashsale-app
+    image: itsanla/s6.tp.flash-sale:v2.0.0
+    container_name: wahana-app
     environment:
-      APP_MODE: all # server (HTTP+UI) + worker (consumer) dalam 1 container
+      APP_MODE: all
       APP_ENV: production
       PORT: "8080"
-      # Pakai nama container unik (bukan "redis"/"rabbitmq") agar tidak tabrakan
-      # DNS dengan service milik Coolify di network "coolify" yang di-share.
-      REDIS_ADDR: flashsale-redis:6379
-      RABBITMQ_URL: amqp://guest:guest@flashsale-rabbitmq:5672/
-      ORDER_TTL_SECONDS: "60"
-      PRODUCT_NAME: "Tiket Flash Sale EventHub 2026"
-      PRODUCT_STOCK: "20"
-      # Uji beban (load test) — demo throughput RabbitMQ + Redis
-      LOADTEST_MAX_QUANTITY: "50000" # batas aman jumlah pesanan per batch
-      LOADTEST_CONCURRENCY: "20"     # jumlah worker paralel pemroses antrean bulk
-      LOADTEST_DELAY_MS: "15"        # simulasi waktu proses per pesanan (ms)
-      # Login Admin (JWT) — satu akun tetap, ganti untuk deployment lain.
+      # SQLite disimpan pada volume supaya data tetap ada setelah container diperbarui.
+      DATABASE_PATH: /app/data/wahana.db
+      # Nama container dipakai sebagai hostname, bukan nama generik seperti "redis",
+      # supaya tidak tertukar dengan service milik Coolify pada network yang di-share.
+      REDIS_ADDR: wahana-redis:6379
+      RABBITMQ_URL: amqp://guest:guest@wahana-rabbitmq:5672/
+      PAYMENT_TTL_MINUTES: "10"
+      CACHE_TTL_SECONDS: "60"
+      QUOTA_TTL_DAYS: "45"
+      MERCHANT_NAME: "TAMAN WAHANA SIMULASI"
+      MERCHANT_CITY: "PADANG"
       ADMIN_USERNAME: "admin"
-      ADMIN_PASSWORD: "FlashSale2026!"
-      JWT_SECRET: "d3b56c1a46d609771e541d540df7d3b980fd5547bd3966af81879c95788774fb"
-      JWT_EXPIRY_HOURS: "2"
+      ADMIN_PASSWORD: "Wahana2026!"
+      JWT_SECRET: "8f42c1d9a7b34e6f95c208d3e71a4b6f0c9d85e23a7148bf6d0e39c5b2a874fd"
+      JWT_EXPIRY_HOURS: "4"
     ports:
       - "6003:8080"
+    volumes:
+      - wahana-app-data:/app/data
     depends_on:
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
-      - flashsale-net
-      - coolify # agar bisa dirouting Traefik
+      - wahana-net
+      - coolify
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
-      # Router http: hanya untuk redirect ke https.
-      - "traefik.http.routers.flashsale-app-http.rule=Host(`topik-khusus.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-app-http.entrypoints=http"
-      - "traefik.http.routers.flashsale-app-http.middlewares=flashsale-app-redirect"
-      - "traefik.http.middlewares.flashsale-app-redirect.redirectscheme.scheme=https"
-      # Router https: TLS via Let's Encrypt (resolver Coolify).
-      - "traefik.http.routers.flashsale-app.rule=Host(`topik-khusus.akademik.anla.works`)"
-      - "traefik.http.routers.flashsale-app.entrypoints=https"
-      - "traefik.http.routers.flashsale-app.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.flashsale-app.service=flashsale-app"
-      - "traefik.http.services.flashsale-app.loadbalancer.server.port=8080"
+      - "traefik.http.routers.wahana-app-http.rule=Host(`topik-khusus.akademik.anla.works`)"
+      - "traefik.http.routers.wahana-app-http.entrypoints=http"
+      - "traefik.http.routers.wahana-app-http.middlewares=wahana-app-redirect"
+      - "traefik.http.middlewares.wahana-app-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.wahana-app.rule=Host(`topik-khusus.akademik.anla.works`)"
+      - "traefik.http.routers.wahana-app.entrypoints=https"
+      - "traefik.http.routers.wahana-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wahana-app.service=wahana-app"
+      - "traefik.http.services.wahana-app.loadbalancer.server.port=8080"
 
 networks:
-  flashsale-net:
-    name: flashsale-net
+  wahana-net:
+    name: wahana-net
     driver: bridge
   coolify:
-    external: true # network reverse proxy Traefik milik Coolify
+    external: true
+
+volumes:
+  wahana-app-data:
+  wahana-redis-data:
+  wahana-rabbitmq-data:

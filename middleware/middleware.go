@@ -2,21 +2,26 @@ package middleware
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Logger mencatat setiap request HTTP beserta durasinya.
+// Logger mencatat setiap permintaan API beserta durasinya. Permintaan berkas statis
+// tidak dicatat supaya log tetap mudah dibaca saat memantau alur pemesanan.
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		log.Printf("%s %s -> %d (%s)", c.Request.Method, c.Request.URL.Path, c.Writer.Status(), time.Since(start))
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/") || path == "/health" {
+			log.Printf("%s %s -> %d (%s)", c.Request.Method, path, c.Writer.Status(), time.Since(start))
+		}
 	}
 }
 
-// CORS mengizinkan akses lintas origin (memudahkan pengujian dari browser/UI).
+// CORS mengizinkan akses lintas origin agar API mudah diuji dari luar aplikasi.
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

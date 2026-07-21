@@ -1,8 +1,11 @@
 .git
 .gitignore
 README.md
+docs
 *.log
 .env
-/flashsale
+data
+web/node_modules
+web/dist
 .idea
 .vscode

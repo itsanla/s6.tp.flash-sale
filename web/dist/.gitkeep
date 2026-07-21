@@ -1,0 +1,3 @@
+Folder ini diisi hasil build Vite saat proses build container berjalan.
+Berkas penanda ini sengaja disimpan supaya perintah go:embed pada web/embed.go
+tetap menemukan folder dist walaupun antarmuka belum pernah di-build.

@@ -10,19 +10,18 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// RoleAdmin adalah satu-satunya role terproteksi pada Flash Sale Mini — sistem
-// ini sengaja tidak membangun tabel user/RBAC penuh (di luar scope demo),
-// cukup satu akun Admin tetap yang dikonfigurasi lewat environment variable.
+// RoleAdmin adalah satu satunya peran terproteksi pada aplikasi ini. Sistem sengaja
+// tidak membangun tabel pengguna penuh karena hanya butuh satu akun pengelola taman.
 const RoleAdmin = "ADMIN"
 
-var ErrInvalidToken = errors.New("token tidak valid atau kedaluwarsa")
+var ErrInvalidToken = errors.New("sesi admin tidak valid atau sudah berakhir")
 
 type claims struct {
 	Role string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-// GenerateToken menerbitkan JWT (HS256) untuk akun admin, berlaku selama expiry.
+// GenerateToken menerbitkan JWT bertanda tangan HS256 untuk akun admin.
 func GenerateToken(secret, username string, expiry time.Duration) (string, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
@@ -53,15 +52,13 @@ func parseToken(secret, tokenString string) (*claims, error) {
 	return c, nil
 }
 
-// RequireAdmin adalah middleware Gin yang memvalidasi header
-// "Authorization: Bearer <token>" dan menolak akses (401) bila token tidak
-// ada/tidak valid/kedaluwarsa/bukan role ADMIN.
+// RequireAdmin menolak permintaan yang tidak menyertakan token admin yang sah.
 func RequireAdmin(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		tokenString := strings.TrimPrefix(header, "Bearer ")
 		if tokenString == "" || tokenString == header {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "autentikasi admin diperlukan"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "login admin diperlukan"})
 			return
 		}
 		if _, err := parseToken(secret, tokenString); err != nil {
