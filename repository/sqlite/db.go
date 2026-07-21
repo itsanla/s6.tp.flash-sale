@@ -40,6 +40,15 @@ func Open(path string) (*sql.DB, error) {
 
 func migrate(db *sql.DB) error {
 	schema := `
+CREATE TABLE IF NOT EXISTS users (
+	id            INTEGER PRIMARY KEY AUTOINCREMENT,
+	name          TEXT    NOT NULL,
+	email         TEXT    NOT NULL UNIQUE,
+	phone         TEXT    NOT NULL DEFAULT '',
+	password_hash TEXT    NOT NULL,
+	created_at    DATETIME NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS rides (
 	id            INTEGER PRIMARY KEY AUTOINCREMENT,
 	slug          TEXT    NOT NULL UNIQUE,
@@ -48,6 +57,7 @@ CREATE TABLE IF NOT EXISTS rides (
 	tagline       TEXT    NOT NULL DEFAULT '',
 	description   TEXT    NOT NULL DEFAULT '',
 	emoji         TEXT    NOT NULL DEFAULT '',
+	image_url     TEXT    NOT NULL DEFAULT '',
 	price         INTEGER NOT NULL DEFAULT 0,
 	duration_min  INTEGER NOT NULL DEFAULT 0,
 	min_height_cm INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +68,7 @@ CREATE TABLE IF NOT EXISTS rides (
 
 CREATE TABLE IF NOT EXISTS orders (
 	id             INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id        INTEGER NOT NULL DEFAULT 0,
 	code           TEXT    NOT NULL UNIQUE,
 	customer_name  TEXT    NOT NULL,
 	customer_email TEXT    NOT NULL DEFAULT '',
@@ -72,6 +83,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
 CREATE TABLE IF NOT EXISTS order_items (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +117,81 @@ CREATE INDEX IF NOT EXISTS idx_tickets_order ON tickets(order_code);
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
-	return seedRides(db)
+	if err := addMissingColumns(db); err != nil {
+		return err
+	}
+	if err := seedRides(db); err != nil {
+		return err
+	}
+	return backfillRideImages(db)
+}
+
+// addMissingColumns menambahkan kolom yang baru diperkenalkan pada versi berikutnya,
+// supaya basis data yang sudah berisi data lama tetap dapat dipakai tanpa dihapus.
+func addMissingColumns(db *sql.DB) error {
+	needed := []struct{ table, column, definition string }{
+		{"rides", "image_url", "TEXT NOT NULL DEFAULT ''"},
+		{"orders", "user_id", "INTEGER NOT NULL DEFAULT 0"},
+	}
+	for _, n := range needed {
+		exists, err := columnExists(db, n.table, n.column)
+		if err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+		stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", n.table, n.column, n.definition)
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("gagal menambah kolom %s.%s: %w", n.table, n.column, err)
+		}
+	}
+	return nil
+}
+
+func columnExists(db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name, ctyp string
+			notNull    int
+			dfltValue  sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &ctyp, &notNull, &dfltValue, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
+}
+
+// backfillRideImages mengisi gambar wahana bawaan yang masih kosong, misalnya pada basis
+// data yang dibuat sebelum kolom gambar diperkenalkan.
+func backfillRideImages(db *sql.DB) error {
+	stmt, err := db.Prepare(`UPDATE rides SET image_url = ? WHERE slug = ? AND image_url = ''`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, r := range seedData {
+		if r.ImageURL == "" {
+			continue
+		}
+		if _, err := stmt.Exec(r.ImageURL, r.Slug); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // seedRides mengisi katalog wahana bila tabel masih kosong. Data hanya ditulis sekali
@@ -126,8 +212,8 @@ func seedRides(db *sql.DB) error {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`INSERT INTO rides
-		(slug, name, category, tagline, description, emoji, price, duration_min, min_height_cm, thrill_level, daily_quota, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
+		(slug, name, category, tagline, description, emoji, image_url, price, duration_min, min_height_cm, thrill_level, daily_quota, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
 	if err != nil {
 		return err
 	}
@@ -135,7 +221,7 @@ func seedRides(db *sql.DB) error {
 
 	for _, r := range seedData {
 		if _, err := stmt.Exec(r.Slug, r.Name, r.Category, r.Tagline, r.Description, r.Emoji,
-			r.Price, r.DurationMin, r.MinHeightCm, r.ThrillLevel, r.DailyQuota); err != nil {
+			r.ImageURL, r.Price, r.DurationMin, r.MinHeightCm, r.ThrillLevel, r.DailyQuota); err != nil {
 			return err
 		}
 	}

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { todayISO } from "./api";
+import { api, clearUserToken, getUserToken, setUserToken, todayISO } from "./api";
 
 // Konteks keranjang belanja dan notifikasi ringkas (toast) dipakai lintas halaman.
 
@@ -23,10 +23,36 @@ function loadCart() {
 export function AppProvider({ children }) {
   const [cart, setCart] = useState(loadCart);
   const [toasts, setToasts] = useState([]);
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
+
+  // Sesi dipulihkan saat aplikasi dibuka: bila token tersimpan masih berlaku, profil
+  // pengunjung diambil ulang; bila sudah kedaluwarsa, token dibuang diam diam.
+  useEffect(() => {
+    if (!getUserToken()) {
+      setAuthReady(true);
+      return;
+    }
+    api
+      .me()
+      .then(setUser)
+      .catch(() => clearUserToken())
+      .finally(() => setAuthReady(true));
+  }, []);
+
+  const signIn = useCallback((token, profile) => {
+    setUserToken(token);
+    setUser(profile);
+  }, []);
+
+  const signOut = useCallback(() => {
+    clearUserToken();
+    setUser(null);
+  }, []);
 
   const toast = useCallback((message, kind = "ok") => {
     const id = Date.now() + Math.random();
@@ -95,6 +121,11 @@ export function AppProvider({ children }) {
     setVisitDate,
     toast,
     toasts,
+    user,
+    setUser,
+    authReady,
+    signIn,
+    signOut,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

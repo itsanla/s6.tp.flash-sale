@@ -12,14 +12,14 @@ type rideRepository struct{ db *sql.DB }
 
 func NewRideRepository(db *sql.DB) domain.RideRepository { return &rideRepository{db: db} }
 
-const rideColumns = `id, slug, name, category, tagline, description, emoji, price,
+const rideColumns = `id, slug, name, category, tagline, description, emoji, image_url, price,
 	duration_min, min_height_cm, thrill_level, daily_quota, is_active`
 
 func scanRide(row interface{ Scan(...any) error }) (*domain.Ride, error) {
 	var r domain.Ride
 	var active int
 	err := row.Scan(&r.ID, &r.Slug, &r.Name, &r.Category, &r.Tagline, &r.Description, &r.Emoji,
-		&r.Price, &r.DurationMin, &r.MinHeightCm, &r.ThrillLevel, &r.DailyQuota, &active)
+		&r.ImageURL, &r.Price, &r.DurationMin, &r.MinHeightCm, &r.ThrillLevel, &r.DailyQuota, &active)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +76,9 @@ func (s *rideRepository) GetByID(ctx context.Context, id int64) (*domain.Ride, e
 
 func (s *rideRepository) Create(ctx context.Context, r *domain.Ride) error {
 	res, err := s.db.ExecContext(ctx, `INSERT INTO rides
-		(slug, name, category, tagline, description, emoji, price, duration_min, min_height_cm, thrill_level, daily_quota, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Slug, r.Name, r.Category, r.Tagline, r.Description, r.Emoji, r.Price,
+		(slug, name, category, tagline, description, emoji, image_url, price, duration_min, min_height_cm, thrill_level, daily_quota, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Slug, r.Name, r.Category, r.Tagline, r.Description, r.Emoji, r.ImageURL, r.Price,
 		r.DurationMin, r.MinHeightCm, r.ThrillLevel, r.DailyQuota, boolToInt(r.IsActive))
 	if err != nil {
 		return err
@@ -89,10 +89,10 @@ func (s *rideRepository) Create(ctx context.Context, r *domain.Ride) error {
 
 func (s *rideRepository) Update(ctx context.Context, r *domain.Ride) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE rides SET
-		name = ?, category = ?, tagline = ?, description = ?, emoji = ?, price = ?,
+		name = ?, category = ?, tagline = ?, description = ?, emoji = ?, image_url = ?, price = ?,
 		duration_min = ?, min_height_cm = ?, thrill_level = ?, daily_quota = ?, is_active = ?
 		WHERE id = ?`,
-		r.Name, r.Category, r.Tagline, r.Description, r.Emoji, r.Price,
+		r.Name, r.Category, r.Tagline, r.Description, r.Emoji, r.ImageURL, r.Price,
 		r.DurationMin, r.MinHeightCm, r.ThrillLevel, r.DailyQuota, boolToInt(r.IsActive), r.ID)
 	if err != nil {
 		return err

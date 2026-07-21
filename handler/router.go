@@ -18,11 +18,12 @@ import (
 
 // Handler menampung seluruh dependensi yang dipakai lapisan HTTP.
 type Handler struct {
-	cfg     *config.Config
-	catalog *usecase.CatalogUsecase
-	orders  *usecase.OrderUsecase
-	mq      *queue.RabbitMQ
-	qrisGen *qris.Generator
+	cfg      *config.Config
+	catalog  *usecase.CatalogUsecase
+	orders   *usecase.OrderUsecase
+	accounts *usecase.AccountUsecase
+	mq       *queue.RabbitMQ
+	qrisGen  *qris.Generator
 }
 
 // Register memasang seluruh rute API dan penyajian aplikasi React.
@@ -31,11 +32,12 @@ func Register(
 	cfg *config.Config,
 	catalog *usecase.CatalogUsecase,
 	orders *usecase.OrderUsecase,
+	accounts *usecase.AccountUsecase,
 	mq *queue.RabbitMQ,
 	qrisGen *qris.Generator,
 	webFS fs.FS,
 ) {
-	h := &Handler{cfg: cfg, catalog: catalog, orders: orders, mq: mq, qrisGen: qrisGen}
+	h := &Handler{cfg: cfg, catalog: catalog, orders: orders, accounts: accounts, mq: mq, qrisGen: qrisGen}
 
 	r.GET("/health", h.health)
 
@@ -46,7 +48,9 @@ func Register(
 		api.GET("/rides", h.listRides)
 		api.GET("/rides/:slug", h.getRide)
 
-		api.POST("/orders", h.checkout)
+		// Checkout memakai auth opsional: tanpa masuk akun tetap bisa memesan, tetapi
+		// bila sedang masuk, pesanan otomatis tercatat pada akun pengunjung.
+		api.POST("/orders", auth.OptionalUser(cfg.JWTSecret), h.checkout)
 		api.GET("/orders/:code", h.getOrder)
 		api.POST("/orders/:code/cancel", h.cancelOrder)
 		api.GET("/orders/:code/tickets", h.getTickets)
@@ -62,7 +66,18 @@ func Register(
 			test.GET("/system", h.systemStatus)
 		}
 
+		// Akun pengunjung
+		api.POST("/auth/register", h.register)
 		api.POST("/auth/login", h.login)
+		api.POST("/auth/admin", h.adminLogin)
+
+		me := api.Group("/me")
+		me.Use(auth.RequireUser(cfg.JWTSecret))
+		{
+			me.GET("", h.profile)
+			me.PUT("", h.updateProfile)
+			me.GET("/orders", h.myOrders)
+		}
 
 		admin := api.Group("/admin")
 		admin.Use(auth.RequireAdmin(cfg.JWTSecret))
@@ -129,10 +144,16 @@ func respondErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
 	case errors.Is(err, domain.ErrRideHasOrders), errors.Is(err, domain.ErrTicketUsed):
 		c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
-	case errors.Is(err, domain.ErrRideNotFound), errors.Is(err, domain.ErrOrderNotFound), errors.Is(err, domain.ErrTicketNotFound):
+	case errors.Is(err, domain.ErrEmailTaken):
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
+	case errors.Is(err, domain.ErrInvalidCredentials):
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": err.Error()})
+	case errors.Is(err, domain.ErrRideNotFound), errors.Is(err, domain.ErrOrderNotFound),
+		errors.Is(err, domain.ErrTicketNotFound), errors.Is(err, domain.ErrUserNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
 	case errors.Is(err, domain.ErrOrderNotPending), errors.Is(err, domain.ErrOrderExpired),
-		errors.Is(err, domain.ErrInvalidInput), errors.Is(err, domain.ErrRideInactive):
+		errors.Is(err, domain.ErrInvalidInput), errors.Is(err, domain.ErrRideInactive),
+		errors.Is(err, domain.ErrPasswordTooShort):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"success": false, "message": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})

@@ -360,11 +360,20 @@ textarea {
   background: linear-gradient(135deg, #007aff 0%, #5856d6 55%, #af52de 100%);
   box-shadow: var(--shadow-lg);
 }
+/* Foto taman menjadi latar pembuka, ditimpa gradasi supaya teks tetap terbaca. */
+.hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.42;
+}
 .hero::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.24), transparent 55%);
+  background: linear-gradient(115deg, rgba(0, 60, 160, 0.72) 0%, rgba(88, 86, 214, 0.55) 48%, rgba(175, 82, 222, 0.42) 100%);
   pointer-events: none;
 }
 .hero-content {
@@ -460,17 +469,81 @@ textarea {
 }
 .ride-thumb {
   position: relative;
-  height: 132px;
+  height: 168px;
   display: grid;
   place-items: center;
   font-size: 56px;
   overflow: hidden;
 }
+/* Foto wahana menutup seluruh bidang kartu; gradasi kategori tetap terlihat sebagai
+   cadangan bila gambar gagal dimuat. */
+.ride-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--ease);
+}
+.ride-card:hover .ride-img {
+  transform: scale(1.06);
+}
 .ride-thumb::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.42), transparent 62%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06) 40%, rgba(0, 0, 0, 0.42) 100%);
+  pointer-events: none;
+}
+/* Emoji tetap dipertahankan sebagai penanda kecil supaya identitas tiap wahana
+   langsung terbaca walau fotonya mirip satu sama lain. */
+.ride-emoji-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-sm);
+}
+.thumb-badges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.thumb-badges .badge {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+}
+
+/* Foto besar pada halaman detail wahana */
+.ride-hero {
+  position: relative;
+  height: 300px;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 84px;
+  box-shadow: var(--shadow-md);
+}
+.ride-hero .ride-emoji-badge {
+  width: 54px;
+  height: 54px;
+  font-size: 28px;
+  left: 16px;
+  bottom: 16px;
 }
 .ride-body {
   padding: 15px 16px 17px;
@@ -947,6 +1020,113 @@ tr:last-child td {
   background: rgba(0, 122, 255, 0.08);
   border-color: rgba(0, 122, 255, 0.2);
   color: #00458f;
+}
+
+/* ------------------------------------------------- Akun: masuk dan profil */
+.auth-card {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-md);
+  padding: 32px 28px;
+  max-width: 420px;
+  margin: 32px auto;
+}
+.auth-mark {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 14px;
+  border-radius: var(--r-lg);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  background: linear-gradient(140deg, var(--blue), var(--indigo));
+  box-shadow: var(--shadow-md);
+}
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+.avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(140deg, var(--blue), var(--indigo));
+  flex: 0 0 auto;
+}
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: var(--r-full);
+  background: var(--gray6);
+  transition: background 0.18s;
+}
+.user-chip:hover {
+  background: var(--gray5);
+}
+.user-chip.active {
+  background: rgba(0, 122, 255, 0.12);
+}
+.avatar-sm {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 750;
+  color: #fff;
+  background: linear-gradient(140deg, var(--blue), var(--indigo));
+}
+.user-name {
+  font-size: 14px;
+  font-weight: 650;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .user-name {
+    display: none;
+  }
+  .user-chip {
+    padding: 4px;
+  }
+}
+
+/* Menghormati preferensi pengguna yang membatasi animasi. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Fokus keyboard tetap terlihat jelas di seluruh kontrol. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2.5px solid var(--blue);
+  outline-offset: 2px;
 }
 
 /* -------------------------------------------------------------------- Footer */

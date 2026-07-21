@@ -18,8 +18,19 @@ var (
 	ErrTicketNotFound     = errors.New("tiket tidak ditemukan")
 	ErrTicketUsed         = errors.New("tiket sudah pernah dipakai")
 	ErrInvalidInput       = errors.New("data yang dikirim tidak valid")
-	ErrInvalidCredentials = errors.New("username atau password salah")
+	ErrInvalidCredentials = errors.New("email atau password salah")
+	ErrEmailTaken         = errors.New("email tersebut sudah terdaftar")
+	ErrUserNotFound       = errors.New("akun tidak ditemukan")
+	ErrPasswordTooShort   = errors.New("password minimal 6 karakter")
 )
+
+// UserRepository adalah kontrak penyimpanan akun pengunjung pada SQLite.
+type UserRepository interface {
+	Create(ctx context.Context, u *User) error
+	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetByID(ctx context.Context, id int64) (*User, error)
+	UpdateProfile(ctx context.Context, id int64, name, phone string) error
+}
 
 // RideRepository adalah kontrak penyimpanan katalog wahana pada SQLite.
 type RideRepository interface {
@@ -38,6 +49,7 @@ type OrderRepository interface {
 	GetByCode(ctx context.Context, code string) (*Order, error)
 	ListByStatus(ctx context.Context, status string, limit int) ([]Order, error)
 	ListRecent(ctx context.Context, limit int) ([]Order, error)
+	ListByUserID(ctx context.Context, userID int64, limit int) ([]Order, error)
 	MarkPaid(ctx context.Context, code string, paidAt time.Time) error
 	UpdateStatus(ctx context.Context, code, status string) error
 	Stats(ctx context.Context) (*Stats, error)

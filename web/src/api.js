@@ -3,22 +3,38 @@
 
 const BASE = "/api/v1";
 
-const TOKEN_KEY = "wahana_admin_token";
+const ADMIN_TOKEN_KEY = "wahana_admin_token";
+const USER_TOKEN_KEY = "wahana_user_token";
 
+// Token admin dan token pengunjung disimpan terpisah supaya keduanya tidak saling
+// menimpa bila seseorang memakai kedua peran pada peramban yang sama.
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
 }
 export function setToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
 }
 export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+export function getUserToken() {
+  return localStorage.getItem(USER_TOKEN_KEY);
+}
+export function setUserToken(token) {
+  localStorage.setItem(USER_TOKEN_KEY, token);
+}
+export function clearUserToken() {
+  localStorage.removeItem(USER_TOKEN_KEY);
 }
 
-async function request(path, { method = "GET", body, auth = false } = {}) {
+async function request(path, { method = "GET", body, auth = false, user = false } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (auth) {
     const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  if (user) {
+    const token = getUserToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   const res = await fetch(BASE + path, {
@@ -45,8 +61,16 @@ export const api = {
   },
   ride: (slug, date) => request(`/rides/${slug}${date ? `?date=${date}` : ""}`),
 
+  // Akun pengunjung
+  register: (payload) => request("/auth/register", { method: "POST", body: payload }),
+  loginUser: (email, password) =>
+    request("/auth/login", { method: "POST", body: { email, password } }),
+  me: () => request("/me", { user: true }),
+  updateMe: (payload) => request("/me", { method: "PUT", body: payload, user: true }),
+  myOrders: () => request("/me/orders", { user: true }),
+
   // Pemesanan
-  checkout: (payload) => request("/orders", { method: "POST", body: payload }),
+  checkout: (payload) => request("/orders", { method: "POST", body: payload, user: true }),
   order: (code) => request(`/orders/${code}`),
   cancelOrder: (code) => request(`/orders/${code}/cancel`, { method: "POST", body: {} }),
   tickets: (code) => request(`/orders/${code}/tickets`),
@@ -59,7 +83,7 @@ export const api = {
 
   // Admin
   login: (username, password) =>
-    request("/auth/login", { method: "POST", body: { username, password } }),
+    request("/auth/admin", { method: "POST", body: { username, password } }),
   stats: () => request("/admin/stats", { auth: true }),
   adminOrders: () => request("/admin/orders", { auth: true }),
   createRide: (payload) => request("/admin/rides", { method: "POST", body: payload, auth: true }),

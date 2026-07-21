@@ -11,7 +11,6 @@ import (
 	"wahanapark/usecase"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // orderResponse membungkus order beserta gambar QR yang siap ditampilkan.
@@ -32,6 +31,8 @@ func (h *Handler) checkout(c *gin.Context) {
 		respondErr(c, domain.ErrInvalidInput)
 		return
 	}
+	// Kepemilikan pesanan diambil dari token, bukan dari badan permintaan.
+	req.UserID = auth.UserID(c)
 	order, err := h.orders.Checkout(c.Request.Context(), req)
 	if err != nil {
 		respondErr(c, err)
@@ -132,36 +133,6 @@ func (h *Handler) systemStatus(c *gin.Context) {
 			{"name": "Penunda kedaluwarsa", "queue": queue.ExpiryWaitQueue, "messages": depth(queue.ExpiryWaitQueue)},
 			{"name": "Pemroses kedaluwarsa", "queue": queue.ExpiryProcessQueue, "messages": depth(queue.ExpiryProcessQueue)},
 		},
-	}})
-}
-
-type loginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func (h *Handler) login(c *gin.Context) {
-	var req loginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondErr(c, domain.ErrInvalidInput)
-		return
-	}
-	if req.Username != h.cfg.AdminUsername {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": domain.ErrInvalidCredentials.Error()})
-		return
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": domain.ErrInvalidCredentials.Error()})
-		return
-	}
-	token, err := auth.GenerateToken(h.cfg.JWTSecret, req.Username, time.Duration(h.cfg.JWTExpiryHours)*time.Hour)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
-		"token":            token,
-		"expires_in_hours": h.cfg.JWTExpiryHours,
 	}})
 }
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { rupiah, STATUS_META } from "./api";
 import { useApp } from "./store";
@@ -5,7 +6,7 @@ import { useApp } from "./store";
 // Kumpulan komponen antarmuka yang dipakai berulang di banyak halaman.
 
 export function Navbar() {
-  const { totals } = useApp();
+  const { totals, user } = useApp();
   const link = ({ isActive }) => "nav-link" + (isActive ? " active" : "");
 
   return (
@@ -24,15 +25,27 @@ export function Navbar() {
             Wahana
           </NavLink>
           <NavLink to="/tiket" className={link}>
-            Tiket Saya
+            Tiket
           </NavLink>
           <NavLink to="/test/qris-list" className={link}>
             Uji QRIS
           </NavLink>
-          <Link to="/keranjang" className="cart-btn" aria-label="Keranjang">
+
+          <Link to="/keranjang" className="cart-btn" aria-label="Keranjang belanja">
             🛒
             {totals.count > 0 && <span className="cart-count">{totals.count}</span>}
           </Link>
+
+          {user ? (
+            <NavLink to="/profil" className="user-chip" title={user.email}>
+              <span className="avatar-sm">{user.name.trim().charAt(0).toUpperCase()}</span>
+              <span className="user-name">{user.name.split(" ")[0]}</span>
+            </NavLink>
+          ) : (
+            <Link to="/masuk" className="btn btn-primary btn-sm">
+              Masuk
+            </Link>
+          )}
         </div>
       </div>
     </nav>
@@ -66,18 +79,38 @@ export function Toasts() {
   );
 }
 
+// RideThumb menampilkan foto wahana. Bila foto gagal dimuat, latar gradasi kategori
+// beserta emoji tetap terlihat sebagai cadangan sehingga kartu tidak pernah kosong.
+export function RideThumb({ ride, className = "ride-thumb", children }) {
+  const [gagal, setGagal] = useState(false);
+  return (
+    <div className={`${className} cat-${ride.category}`}>
+      {ride.image_url && !gagal && (
+        <img
+          className="ride-img"
+          src={ride.image_url}
+          alt={ride.name}
+          loading="lazy"
+          onError={() => setGagal(true)}
+        />
+      )}
+      <span className="ride-emoji-badge">{ride.emoji}</span>
+      {children}
+    </div>
+  );
+}
+
 export function RideCard({ ride }) {
   const habis = ride.available !== undefined && ride.available <= 0;
   return (
     <Link to={`/wahana/${ride.slug}`} className="ride-card">
-      <div className={`ride-thumb cat-${ride.category}`}>
-        <span style={{ position: "relative", zIndex: 1 }}>{ride.emoji}</span>
-      </div>
-      <div className="ride-body">
-        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+      <RideThumb ride={ride}>
+        <div className="thumb-badges">
           <ThrillBadge level={ride.thrill_level} />
           {habis && <span className="badge badge-red">Kuota habis</span>}
         </div>
+      </RideThumb>
+      <div className="ride-body">
         <div className="ride-name">{ride.name}</div>
         <div className="ride-tagline">{ride.tagline}</div>
         <div className="ride-foot">

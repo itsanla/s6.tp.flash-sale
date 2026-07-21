@@ -13,13 +13,13 @@ type orderRepository struct{ db *sql.DB }
 
 func NewOrderRepository(db *sql.DB) domain.OrderRepository { return &orderRepository{db: db} }
 
-const orderColumns = `id, code, customer_name, customer_email, customer_phone, visit_date,
+const orderColumns = `id, user_id, code, customer_name, customer_email, customer_phone, visit_date,
 	status, total_amount, qris_payload, created_at, expires_at, paid_at`
 
 func scanOrder(row interface{ Scan(...any) error }) (*domain.Order, error) {
 	var o domain.Order
 	var paidAt sql.NullTime
-	err := row.Scan(&o.ID, &o.Code, &o.CustomerName, &o.CustomerEmail, &o.CustomerPhone,
+	err := row.Scan(&o.ID, &o.UserID, &o.Code, &o.CustomerName, &o.CustomerEmail, &o.CustomerPhone,
 		&o.VisitDate, &o.Status, &o.TotalAmount, &o.QRISPayload, &o.CreatedAt, &o.ExpiresAt, &paidAt)
 	if err != nil {
 		return nil, err
@@ -41,9 +41,9 @@ func (s *orderRepository) Create(ctx context.Context, o *domain.Order) error {
 	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx, `INSERT INTO orders
-		(code, customer_name, customer_email, customer_phone, visit_date, status, total_amount, qris_payload, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		o.Code, o.CustomerName, o.CustomerEmail, o.CustomerPhone, o.VisitDate,
+		(user_id, code, customer_name, customer_email, customer_phone, visit_date, status, total_amount, qris_payload, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		o.UserID, o.Code, o.CustomerName, o.CustomerEmail, o.CustomerPhone, o.VisitDate,
 		o.Status, o.TotalAmount, o.QRISPayload, o.CreatedAt, o.ExpiresAt)
 	if err != nil {
 		return err
@@ -141,6 +141,12 @@ func (s *orderRepository) ListByStatus(ctx context.Context, status string, limit
 func (s *orderRepository) ListRecent(ctx context.Context, limit int) ([]domain.Order, error) {
 	return s.listWithItems(ctx, `SELECT `+orderColumns+` FROM orders
 		ORDER BY created_at DESC LIMIT ?`, limit)
+}
+
+// ListByUserID mengembalikan riwayat pemesanan milik satu akun pengunjung.
+func (s *orderRepository) ListByUserID(ctx context.Context, userID int64, limit int) ([]domain.Order, error) {
+	return s.listWithItems(ctx, `SELECT `+orderColumns+` FROM orders WHERE user_id = ?
+		ORDER BY created_at DESC LIMIT ?`, userID, limit)
 }
 
 // MarkPaid hanya berhasil bila order masih PENDING. Kondisi status pada klausa WHERE

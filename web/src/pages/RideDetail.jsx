@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, formatDate, rupiah, todayISO } from "../api";
-import { Loading, Stepper, ThrillBadge } from "../components";
+import { Loading, RideThumb, Stepper, ThrillBadge } from "../components";
 import { useApp } from "../store";
 
 export default function RideDetail() {
@@ -55,9 +55,7 @@ export default function RideDetail() {
 
       <div className="mt-16 detail-layout" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 22, alignItems: "start" }}>
         <div>
-          <div className={`ride-thumb cat-${ride.category}`} style={{ height: 220, borderRadius: "var(--r-xl)", fontSize: 92 }}>
-            <span style={{ position: "relative", zIndex: 1 }}>{ride.emoji}</span>
-          </div>
+          <RideThumb ride={ride} className="ride-hero" />
 
           <div className="mt-24">
             <div className="row wrap" style={{ gap: 8 }}>

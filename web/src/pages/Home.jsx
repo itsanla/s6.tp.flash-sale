@@ -3,13 +3,20 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { RideCard, SkeletonGrid } from "../components";
 
+const foto = (id) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=900&q=70`;
+
+// Foto pembuka dan foto tiap zona wahana. Sumber gambar bersifat publik dan dipakai
+// sebagai gambar sementara untuk keperluan tampilan.
+const HERO_IMAGE = foto("1519762557749-400299dcde46");
+
 const CATEGORY_ART = {
-  ekstrem: { emoji: "🎢", desc: "Adrenalin tanpa kompromi" },
-  keluarga: { emoji: "🎡", desc: "Seru untuk semua umur" },
-  anak: { emoji: "🎈", desc: "Aman dan ramah balita" },
-  air: { emoji: "🌊", desc: "Basah basahan sepuasnya" },
-  petualangan: { emoji: "🪂", desc: "Uji nyali di alam terbuka" },
-  indoor: { emoji: "🎬", desc: "Sejuk dan bebas cuaca" },
+  ekstrem: { emoji: "🎢", desc: "Adrenalin tanpa kompromi", img: foto("1627035983655-0ceec61bb733") },
+  keluarga: { emoji: "🎡", desc: "Seru untuk semua umur", img: foto("1598947720689-d7f934bde9e3") },
+  anak: { emoji: "🎈", desc: "Aman dan ramah balita", img: foto("1582569789410-49a05e8a461f") },
+  air: { emoji: "🌊", desc: "Basah basahan sepuasnya", img: foto("1701361650313-9b20b1d76820") },
+  petualangan: { emoji: "🪂", desc: "Uji nyali di alam terbuka", img: foto("1648853070657-6d58398bee93") },
+  indoor: { emoji: "🎬", desc: "Sejuk dan bebas cuaca", img: foto("1558271697-dd9f331ca8b3") },
 };
 
 export default function Home() {
@@ -26,6 +33,7 @@ export default function Home() {
   return (
     <div className="container page">
       <section className="hero">
+        <img className="hero-img" src={HERO_IMAGE} alt="" aria-hidden="true" />
         <div className="hero-content">
           <div className="hero-badges">
             <span className="hero-badge">32 wahana</span>
@@ -64,8 +72,9 @@ export default function Home() {
             const art = CATEGORY_ART[c.slug] || { emoji: "🎪", desc: "" };
             return (
               <Link key={c.slug} to={`/wahana?kategori=${c.slug}`} className="ride-card">
-                <div className={`ride-thumb cat-${c.slug}`} style={{ height: 104 }}>
-                  <span style={{ position: "relative", zIndex: 1 }}>{art.emoji}</span>
+                <div className={`ride-thumb cat-${c.slug}`} style={{ height: 120 }}>
+                  <img className="ride-img" src={art.img} alt="" loading="lazy" />
+                  <span className="ride-emoji-badge">{art.emoji}</span>
                 </div>
                 <div className="ride-body">
                   <div className="ride-name">{c.label}</div>

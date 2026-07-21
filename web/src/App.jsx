@@ -9,6 +9,9 @@ import Payment from "./pages/Payment";
 import Tickets from "./pages/Tickets";
 import QrisTest from "./pages/QrisTest";
 import Admin from "./pages/Admin";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 function ScrollToTop() {
@@ -34,6 +37,9 @@ export default function App() {
           <Route path="/tiket" element={<Tickets />} />
           <Route path="/tiket/:code" element={<Tickets />} />
           <Route path="/test/qris-list" element={<QrisTest />} />
+          <Route path="/masuk" element={<Login />} />
+          <Route path="/daftar" element={<Register />} />
+          <Route path="/profil" element={<Profile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

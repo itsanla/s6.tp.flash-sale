@@ -36,6 +36,16 @@ var CategoryLabels = map[string]string{
 	CategoryIndoor:      "Indoor",
 }
 
+// User adalah akun pengunjung yang memesan tiket.
+type User struct {
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	Phone        string    `json:"phone"`
+	PasswordHash string    `json:"-"` // tidak pernah ikut dikirim ke klien
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 // Ride adalah satu wahana yang tiketnya dijual.
 type Ride struct {
 	ID          int64  `json:"id"`
@@ -45,6 +55,7 @@ type Ride struct {
 	Tagline     string `json:"tagline"`
 	Description string `json:"description"`
 	Emoji       string `json:"emoji"`
+	ImageURL    string `json:"image_url"`
 	Price       int64  `json:"price"`         // rupiah per tiket
 	DurationMin int    `json:"duration_min"`  // durasi wahana dalam menit
 	MinHeightCm int    `json:"min_height_cm"` // syarat tinggi minimum, 0 berarti bebas
@@ -70,8 +81,10 @@ type OrderItem struct {
 }
 
 // Order adalah satu transaksi pembelian tiket oleh pengunjung.
+// UserID bernilai nol bila pemesanan dilakukan tanpa masuk ke akun.
 type Order struct {
 	ID            int64       `json:"-"`
+	UserID        int64       `json:"-"`
 	Code          string      `json:"code"`
 	CustomerName  string      `json:"customer_name"`
 	CustomerEmail string      `json:"customer_email"`

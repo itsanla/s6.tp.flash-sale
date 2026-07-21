@@ -7,7 +7,7 @@ const KATEGORI = ["ekstrem", "keluarga", "anak", "air", "petualangan", "indoor"]
 
 const KOSONG = {
   slug: "", name: "", category: "keluarga", tagline: "", description: "",
-  emoji: "🎠", price: 30000, duration_min: 10, min_height_cm: 0,
+  emoji: "🎠", image_url: "", price: 30000, duration_min: 10, min_height_cm: 0,
   thrill_level: 1, daily_quota: 300, is_active: true,
 };
 
@@ -194,6 +194,15 @@ export default function Admin() {
               <label className="label">Kuota harian</label>
               <input type="number" className="input" min="0" value={form.daily_quota} onChange={(e) => setForm({ ...form, daily_quota: Number(e.target.value) })} />
             </div>
+          </div>
+          <div className="field mt-16">
+            <label className="label">Alamat gambar wahana</label>
+            <input
+              className="input"
+              placeholder="https://..."
+              value={form.image_url || ""}
+              onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+            />
           </div>
           <div className="field mt-16">
             <label className="label">Deskripsi singkat</label>

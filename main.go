@@ -48,6 +48,7 @@ func main() {
 	rideRepo := sqlite.NewRideRepository(db)
 	orderRepo := sqlite.NewOrderRepository(db)
 	ticketRepo := sqlite.NewTicketRepository(db)
+	userRepo := sqlite.NewUserRepository(db)
 
 	// --- Redis: kuota atomik dan cache ---
 	rdb := redis.NewClient(&redis.Options{
@@ -81,6 +82,7 @@ func main() {
 		time.Duration(cfg.CacheTTLSeconds)*time.Second)
 	orderUC := usecase.NewOrderUsecase(orderRepo, rideRepo, ticketRepo, quotaStore,
 		cache, mq, qrisGen, paymentTTL)
+	accountUC := usecase.NewAccountUsecase(userRepo, orderRepo)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -94,7 +96,7 @@ func main() {
 
 	var srv *http.Server
 	if cfg.AppMode == "server" || cfg.AppMode == "all" {
-		srv = startServer(cfg, catalogUC, orderUC, mq, qrisGen)
+		srv = startServer(cfg, catalogUC, orderUC, accountUC, mq, qrisGen)
 	}
 	if cfg.AppMode == "worker" {
 		log.Println("Mode worker: menunggu pesan dari antrean")
@@ -117,6 +119,7 @@ func startServer(
 	cfg *config.Config,
 	catalogUC *usecase.CatalogUsecase,
 	orderUC *usecase.OrderUsecase,
+	accountUC *usecase.AccountUsecase,
 	mq *queue.RabbitMQ,
 	qrisGen *qris.Generator,
 ) *http.Server {
@@ -133,7 +136,7 @@ func startServer(
 		log.Fatalf("Gagal membaca berkas antarmuka: %v", err)
 	}
 
-	handler.Register(r, cfg, catalogUC, orderUC, mq, qrisGen, webFS)
+	handler.Register(r, cfg, catalogUC, orderUC, accountUC, mq, qrisGen, webFS)
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
 	go func() {

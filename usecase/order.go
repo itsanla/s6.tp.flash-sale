@@ -21,12 +21,15 @@ type CheckoutItem struct {
 }
 
 // CheckoutRequest adalah data lengkap yang dikirim halaman keranjang.
+// UserID tidak berasal dari badan permintaan melainkan dari token pengunjung, sehingga
+// pemesan tidak dapat mengaku sebagai akun milik orang lain.
 type CheckoutRequest struct {
 	CustomerName  string         `json:"customer_name"`
 	CustomerEmail string         `json:"customer_email"`
 	CustomerPhone string         `json:"customer_phone"`
 	VisitDate     string         `json:"visit_date"`
 	Items         []CheckoutItem `json:"items"`
+	UserID        int64          `json:"-"`
 }
 
 // OrderUsecase memuat logika pemesanan tiket: reservasi kuota, penerbitan QRIS,
@@ -122,6 +125,7 @@ func (u *OrderUsecase) Checkout(ctx context.Context, req CheckoutRequest) (*doma
 
 	now := time.Now()
 	order := &domain.Order{
+		UserID:        req.UserID,
 		Code:          "ORD-" + randomCode(6),
 		CustomerName:  strings.TrimSpace(req.CustomerName),
 		CustomerEmail: strings.TrimSpace(req.CustomerEmail),

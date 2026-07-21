@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatDate, rupiah, todayISO } from "../api";
 import { Empty, Stepper } from "../components";
@@ -6,10 +6,21 @@ import { useApp } from "../store";
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cart, totals, updateQuantity, removeItem, setVisitDate, clearCart, toast } = useApp();
+  const { cart, totals, updateQuantity, removeItem, setVisitDate, clearCart, toast, user } = useApp();
 
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  // Data pemesan diisikan otomatis dari akun supaya pengunjung tidak perlu mengetik ulang.
+  useEffect(() => {
+    if (user) {
+      setForm((f) => ({
+        name: f.name || user.name || "",
+        email: f.email || user.email || "",
+        phone: f.phone || user.phone || "",
+      }));
+    }
+  }, [user]);
 
   const date = cart.visitDate || todayISO();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -88,7 +99,14 @@ export default function Cart() {
           </div>
 
           <div className="card">
-            <div className="title-sm mb-16">Data pemesan</div>
+            <div className="row-between mb-16">
+              <div className="title-sm">Data pemesan</div>
+              {!user && (
+                <Link to="/masuk?lanjut=/keranjang" className="btn btn-tinted btn-sm">
+                  Masuk untuk menyimpan riwayat
+                </Link>
+              )}
+            </div>
             <div className="stack">
               <div className="field">
                 <label className="label" htmlFor="nama">Nama lengkap</label>
