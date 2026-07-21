@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, formatDate, rupiah, todayISO } from "../api";
+import { api, CATEGORY_LABELS, formatDate, rupiah, todayISO } from "../api";
 import { Loading, RideThumb, Stepper, ThrillBadge } from "../components";
 import { useApp } from "../store";
 
@@ -59,8 +59,10 @@ export default function RideDetail() {
 
           <div className="mt-24">
             <div className="row wrap" style={{ gap: 8 }}>
+              <span className="badge badge-blue">
+                Zona {CATEGORY_LABELS[ride.category] || ride.category}
+              </span>
               <ThrillBadge level={ride.thrill_level} />
-              <span className="badge badge-blue">{ride.category}</span>
               {habis ? (
                 <span className="badge badge-red">Kuota tanggal ini habis</span>
               ) : (

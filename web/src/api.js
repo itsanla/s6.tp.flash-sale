@@ -132,6 +132,16 @@ export function countdownText(seconds) {
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// Label tampilan untuk tiap zona wahana.
+export const CATEGORY_LABELS = {
+  ekstrem: "Ekstrem",
+  keluarga: "Keluarga",
+  anak: "Anak",
+  air: "Wahana Air",
+  petualangan: "Petualangan",
+  indoor: "Indoor",
+};
+
 export const STATUS_META = {
   PENDING: { label: "Menunggu pembayaran", cls: "badge-orange" },
   PAID: { label: "Lunas", cls: "badge-green" },

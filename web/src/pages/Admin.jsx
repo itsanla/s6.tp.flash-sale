@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, clearToken, formatTime, getToken, rupiah, setToken } from "../api";
+import { api, CATEGORY_LABELS, clearToken, formatTime, getToken, rupiah, setToken } from "../api";
 import { Empty, Loading, StatusBadge } from "../components";
 import { useApp } from "../store";
 
@@ -167,7 +167,7 @@ export default function Admin() {
             <div className="field">
               <label className="label">Kategori</label>
               <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                {KATEGORI.map((k) => <option key={k} value={k}>{k}</option>)}
+                {KATEGORI.map((k) => <option key={k} value={k}>{CATEGORY_LABELS[k]}</option>)}
               </select>
             </div>
             <div className="field">
@@ -237,7 +237,7 @@ export default function Admin() {
               {rides.map((r) => (
                 <tr key={r.id}>
                   <td><span style={{ marginRight: 8 }}>{r.emoji}</span>{r.name}</td>
-                  <td><span className="badge">{r.category}</span></td>
+                  <td><span className="badge">{CATEGORY_LABELS[r.category] || r.category}</span></td>
                   <td>{rupiah(r.price)}</td>
                   <td>{r.daily_quota}</td>
                   <td>
